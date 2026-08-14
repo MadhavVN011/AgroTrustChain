@@ -547,7 +547,7 @@ This is an academic project, and the code has rough edges worth naming before an
 **Madhav V Nair**
 
 Research paper: *Enhancing and Securing Agricultural Products Traceability Using Ethereum Based
-AgroTrustChain Framework* — included in this repository as `Major Research Paper.md`.
+AgroTrustChain Framework* — included in this repository as `Research Paper.pdf`.
 
 **Keywords:** Raft consensus, agri-food supply chain, blockchain, weight allocation, Ethereum,
 smart contracts, traceability.
