@@ -1,0 +1,100 @@
+
+    {% extends "Home.html" %}
+
+{% block content %}
+    <h2 class="heading">{{operation}}  Transaction Details</h2>
+    <form id="frm" name="frm" method="post" action="/ProcessTransactionDetailsOperation" enctype="multipart/form-data">
+               
+      
+         <input type="hidden" name="operation" value="{{ operation }}"/>
+         <input type="hidden" name="orderID" value="{{ row.orderID }}"/>
+
+        
+
+            <div class="form-group row">
+                <label for="agricultureBoardID" class="col-sm-3 col-form-label">Agricultureboardid </label>
+                <div class="col-sm-9">
+                    <select class="form-control" id="agricultureBoardID" name="agricultureBoardID" {{'disabled' if operation == 'Delete'}}>
+                        {% for dd_row in agricultureBoard_list %}
+                            <option value="{{dd_row.agricultureBoardID}}">{{dd_row.agricultureBoardName}}</option>
+                
+                        {% endfor %}
+                    </select>                          
+                </div>
+            </div>
+            
+                                            <div class="form-group row">
+                                    <label for="gstNbr" class="col-sm-3 col-form-label">Gstnbr </label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control" name="gstNbr" id="gstNbr"  value="{{ row.gstNbr }}" required {{'readonly' if operation == 'Delete'}} />
+                                    </div>
+                                </div>
+                                            
+            <div class="form-group row">
+                <label for="buyerID" class="col-sm-3 col-form-label">Buyerid </label>
+                <div class="col-sm-9">
+                    <select class="form-control" id="buyerID" name="buyerID" {{'disabled' if operation == 'Delete'}}>
+                        {% for dd_row in buyer_list %}
+                            <option value="{{dd_row.buyerID}}">{{dd_row.buyerName}}</option>
+                
+                        {% endfor %}
+                    </select>                          
+                </div>
+            </div>
+            
+            <div class="form-group row">
+                <label for="farmerID" class="col-sm-3 col-form-label">Farmerid </label>
+                <div class="col-sm-9">
+                    <select class="form-control" id="farmerID" name="farmerID" {{'disabled' if operation == 'Delete'}}>
+                        {% for dd_row in farmer_list %}
+                            <option value="{{dd_row.farmerID}}">{{dd_row.farmerName}}</option>
+                
+                        {% endfor %}
+                    </select>                          
+                </div>
+            </div>
+            
+                                                <div class="form-group row">
+                                        <label for="effDate" class="col-sm-3 col-form-label">Effdate  </label>
+                                        <div class="col-sm-9">
+                                            <input type="date" class="form-control" name="effDate" id="effDate"  value="{{ row.effDate }}" required {{ 'readonly' if operation == 'Delete' }} />
+                                        </div>
+                                    </div>
+                                                
+            <div class="form-group row">
+                <label for="productID" class="col-sm-3 col-form-label">Productid </label>
+                <div class="col-sm-9">
+                    <select class="form-control" id="productID" name="productID" {{'disabled' if operation == 'Delete'}}>
+                        {% for dd_row in product_list %}
+                            <option value="{{dd_row.productID}}">{{dd_row.productName}}</option>
+                
+                        {% endfor %}
+                    </select>                          
+                </div>
+            </div>
+            
+                    <div class="form-group row">
+            <label for="price" class="col-sm-3 col-form-label">Price </label>
+            <div class="col-sm-9">
+                <input type="number" class="form-control" name="price" id="price"  value="{{ row.price }}" required {{'readonly' if operation == 'Delete'}} />
+            </div>
+        </div>
+                    
+                    <div class="form-group row">
+            <label for="qty" class="col-sm-3 col-form-label">Qty </label>
+            <div class="col-sm-9">
+                <input type="number" class="form-control" name="qty" id="qty"  value="{{ row.qty }}" required {{'readonly' if operation == 'Delete'}} />
+            </div>
+        </div>
+                    
+    
+		
+        <div class="text-center">
+                <button type="submit" class="btn btn-outline-primary btn-sm ">{{operation}}</button>
+                <a href="/TransactionDetailsListing" class="btn btn-outline-primary btn-sm ">Cancel</a>
+        </div>
+
+    </form>
+    
+{% endblock %}
+    

@@ -1,0 +1,87 @@
+
+    {% extends "Home.html" %}
+
+{% block content %}
+    <h2 class="heading">{{operation}}  Farmer</h2>
+    <form id="frm" name="frm" method="post" action="/ProcessFarmerOperation" enctype="multipart/form-data">
+               
+      
+         <input type="hidden" name="operation" value="{{ operation }}"/>
+         <input type="hidden" name="farmerID" value="{{ row.farmerID }}"/>
+
+        
+
+                                            <div class="form-group row">
+                                    <label for="farmerName" class="col-sm-3 col-form-label">Farmername </label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control" name="farmerName" id="farmerName"  value="{{ row.farmerName }}" required {{'readonly' if operation == 'Delete'}} />
+                                    </div>
+                                </div>
+                                            
+                                            <div class="form-group row">
+                                    <label for="contactNbr" class="col-sm-3 col-form-label">Contactnbr </label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control" name="contactNbr" id="contactNbr"  value="{{ row.contactNbr }}" required {{'readonly' if operation == 'Delete'}} />
+                                    </div>
+                                </div>
+                                            
+                                            <div class="form-group row">
+                                    <label for="emailID" class="col-sm-3 col-form-label">Emailid </label>
+                                    <div class="col-sm-9">
+                                        <input type="email" class="form-control" name="emailID" id="emailID"  value="{{ row.emailID }}" required {{'readonly' if operation == 'Delete'}} />
+                                    </div>
+                                </div>
+                                            
+                                            <div class="form-group row">
+                                    <label for="address" class="col-sm-3 col-form-label">Address </label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control" name="address" id="address"  value="{{ row.address }}" required {{'readonly' if operation == 'Delete'}} />
+                                    </div>
+                                </div>
+                                            
+                                            <div class="form-group row">
+                                    <label for="city" class="col-sm-3 col-form-label">City </label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control" name="city" id="city"  value="{{ row.city }}" required {{'readonly' if operation == 'Delete'}} />
+                                    </div>
+                                </div>
+                                            
+                                            <div class="form-group row">
+                                    <label for="county" class="col-sm-3 col-form-label">County </label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control" name="county" id="county"  value="{{ row.county }}" required {{'readonly' if operation == 'Delete'}} />
+                                    </div>
+                                </div>
+                                            
+                                            <div class="form-group row">
+                                    <label for="postcode" class="col-sm-3 col-form-label">Postcode </label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control" name="postcode" id="postcode"  value="{{ row.postcode }}" required {{'readonly' if operation == 'Delete'}} />
+                                    </div>
+                                </div>
+                                            
+                                            <div class="form-group row">
+                                    <label for="country" class="col-sm-3 col-form-label">Country </label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control" name="country" id="country"  value="{{ row.country }}" required {{'readonly' if operation == 'Delete'}} />
+                                    </div>
+                                </div>
+                                            
+                                            <div class="form-group row">
+                                    <label for="adharNumber" class="col-sm-3 col-form-label">Adharnumber </label>
+                                    <div class="col-sm-9">
+                                        <input type="text" class="form-control" name="adharNumber" id="adharNumber"  value="{{ row.adharNumber }}" required {{'readonly' if operation == 'Delete'}} />
+                                    </div>
+                                </div>
+                                            
+    
+		
+        <div class="text-center">
+                <button type="submit" class="btn btn-outline-primary btn-sm ">{{operation}}</button>
+                <a href="/FarmerListing" class="btn btn-outline-primary btn-sm ">Cancel</a>
+        </div>
+
+    </form>
+    
+{% endblock %}
+    

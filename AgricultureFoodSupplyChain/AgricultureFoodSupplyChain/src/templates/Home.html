@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AgriChain | Food Supply Chain</title>
+    <script src="static/jquery.min.js"></script>
+    <link href="static/bootstrap.min.css" rel="stylesheet">
+    <link href="static/icons.min.css" rel="stylesheet">
+    <link href="static/agri-modern.css" rel="stylesheet">
+    <script src="static/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <a class="brand" href="/Dashboard">
+                <span class="brand-mark">AC</span>
+                <span>
+                    <strong>AgriChain</strong>
+                    <small>Food Supply Chain</small>
+                </span>
+            </a>
+
+            <div class="side-label">Workspace</div>
+            <nav class="side-nav">
+                <a href="/Dashboard">Dashboard</a>
+                <a href="/ProductListing">Products</a>
+                <a href="/AgricultureBoardListing">Agriculture Boards</a>
+                <a href="/FarmerListing">Farmers</a>
+                <a href="/BuyerListing">Buyers</a>
+                <a href="/TransactionDetailsListing">Transactions</a>
+            </nav>
+
+            <div class="side-label">Blockchain</div>
+            <nav class="side-nav">
+                <a href="/BlockChainGeneration">Generate Blocks</a>
+                <a href="/BlockChainReport">Blockchain Report</a>
+            </nav>
+
+            <div class="side-label">Administration</div>
+            <nav class="side-nav">
+                <a href="/RoleListing">Roles</a>
+                <a href="/UsersListing">Users</a>
+                <a href="/ChangePassword">Change Password</a>
+            </nav>
+        </aside>
+
+        <main class="main-panel">
+            <header class="topbar">
+                <div>
+                    <p class="eyebrow">Blockchain enabled agriculture traceability</p>
+                    <h1>Supply Chain Control Center</h1>
+                </div>
+                <a class="btn btn-dark" href="/">Logout</a>
+            </header>
+
+            <section class="content-panel">
+                {% block content %}
+                {% endblock %}
+            </section>
+        </main>
+    </div>
+</body>
+</html>

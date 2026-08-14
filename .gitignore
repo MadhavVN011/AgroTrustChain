@@ -1,0 +1,103 @@
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Packaging / tooling
+build/
+dist/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# NOTE: the "build/" rule above is un-ignored for Truffle further down —
+# the Flask app loads contract ABIs from AgricultureFoodSupplyChain-Truffle/build/.
+
+# ---------------------------------------------------------------------------
+# Flask
+# ---------------------------------------------------------------------------
+instance/
+.webassets-cache
+*.log
+
+# ---------------------------------------------------------------------------
+# Secrets and local configuration
+# ---------------------------------------------------------------------------
+# Never commit credentials, mnemonics, or private keys.
+.env
+.env.*
+.secret
+*.pem
+*.key
+secrets.json
+
+# ---------------------------------------------------------------------------
+# Node / Truffle
+# ---------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-error.log*
+package-lock.json.bak
+
+# Truffle build artifacts are INTENTIONALLY tracked: TransactionDetailsModel.py
+# reads the contract ABI from build/contracts/*.json at runtime, so a fresh
+# clone needs them present before the first `truffle migrate`.
+!AgricultureFoodSupplyChain-Truffle/build/
+!AgricultureFoodSupplyChain-Truffle/build/**
+
+# Ganache local chain database
+.ganache/
+ganache-db/
+
+# ---------------------------------------------------------------------------
+# JetBrains / PyCharm
+# ---------------------------------------------------------------------------
+# Keep the shared module config, drop per-developer local state.
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/dictionaries/
+.idea/shelf/
+.idea/httpRequests/
+.idea/dataSources/
+.idea/dataSources.local.xml
+.idea/sonarlint/
+*.iws
+
+# ---------------------------------------------------------------------------
+# Editor / OS noise
+# ---------------------------------------------------------------------------
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------------------------------------------------------------------------
+# Project-specific
+# ---------------------------------------------------------------------------
+# Stray editor backups. The SQL Server database backup
+# (AgricultureFoodSupplyChainV1DB.bak) is deliberately NOT ignored — the README
+# setup instructions require it.
+*.html.bak
+
+# Runtime output directories: keep the folders, ignore what lands in them.
+AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/static/UPLOADED_FILES/*
+!AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/static/UPLOADED_FILES/.gitkeep
+AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/static/charts/*
+!AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/static/charts/.gitkeep

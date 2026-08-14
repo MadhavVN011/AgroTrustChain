@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AgriChain Login</title>
+    <link href="./static/bootstrap.min.css" rel="stylesheet">
+    <link href="./static/agri-modern.css" rel="stylesheet">
+</head>
+<body>
+    <main class="login-page">
+        <section class="login-visual">
+            <div>
+                <p class="eyebrow">Blockchain enabled food supply chain</p>
+                <h1>Transparent agriculture tracking from farm source to buyer record.</h1>
+                <p>A modern project interface for farmers, buyers, agriculture boards, product records, transactions, and blockchain verification.</p>
+            </div>
+        </section>
+
+        <section class="login-panel">
+            <div class="login-card">
+                <span class="brand-mark">AC</span>
+                <h2>Welcome back</h2>
+                <p class="subtitle">Sign in to continue to the AgriChain control center.</p>
+
+                {% if processResult %}
+                <div class="alert alert-danger">{{ processResult }}</div>
+                {% endif %}
+
+                <form action="/processLogin" method="post">
+                    <div class="mb-3">
+                        <label class="form-label" for="emailid">Email ID</label>
+                        <input type="text" class="form-control" id="emailid" name="emailid" placeholder="Enter email ID" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="password">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" placeholder="Enter password" required>
+                    </div>
+
+                    <button class="btn btn-primary" type="submit">Log In</button>
+                </form>
+
+                <p class="login-foot">&copy; <script>document.write(new Date().getFullYear())</script> AgriChain Food Supply Chain.</p>
+            </div>
+        </section>
+    </main>
+    <script src="./static/jquery.min.js"></script>
+    <script src="./static/bootstrap.bundle.min.js"></script>
+</body>
+</html>

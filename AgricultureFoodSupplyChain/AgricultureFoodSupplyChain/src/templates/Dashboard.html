@@ -1,0 +1,76 @@
+{% extends "Home.html" %}
+
+{% block content %}
+<section class="page-hero">
+    <p class="eyebrow">Major project dashboard</p>
+    <h2>Trace agricultural products from board approval to farmer supply, buyer purchase, transaction record, and blockchain verification.</h2>
+    <p>Use this workspace to manage participants, register products, capture movement of goods, and generate tamper-aware blockchain reports for the supply chain.</p>
+</section>
+
+<section class="stat-grid">
+    <div class="stat-card">
+        <span>Core entities</span>
+        <strong>5</strong>
+        <p>Boards, farmers, buyers, products, and transactions.</p>
+    </div>
+    <div class="stat-card">
+        <span>Verification layer</span>
+        <strong>Hash</strong>
+        <p>Transaction details are organized for blockchain reporting.</p>
+    </div>
+    <div class="stat-card">
+        <span>Access control</span>
+        <strong>Roles</strong>
+        <p>Permissions keep each module controlled by user role.</p>
+    </div>
+    <div class="stat-card">
+        <span>Project focus</span>
+        <strong>Trust</strong>
+        <p>Improves transparency across the food supply chain.</p>
+    </div>
+</section>
+
+<section class="module-grid">
+    <div class="module-card">
+        <span>Catalog</span>
+        <h3>Products</h3>
+        <p>Maintain crop and food product details with packing size and price.</p>
+        <a class="btn btn-outline-primary btn-sm" href="/ProductListing">Manage Products</a>
+    </div>
+    <div class="module-card">
+        <span>Participants</span>
+        <h3>Farmers and Buyers</h3>
+        <p>Record the people and organizations involved in the supply chain.</p>
+        <a class="btn btn-outline-primary btn-sm" href="/FarmerListing">View Farmers</a>
+    </div>
+    <div class="module-card">
+        <span>Governance</span>
+        <h3>Agriculture Board</h3>
+        <p>Keep board identity and contact details ready for transaction traceability.</p>
+        <a class="btn btn-outline-primary btn-sm" href="/AgricultureBoardListing">Open Boards</a>
+    </div>
+</section>
+
+<section class="timeline-grid">
+    <div class="flow-card">
+        <span>Step 01</span>
+        <h3>Register</h3>
+        <p>Add verified products, farmers, buyers, and agriculture boards.</p>
+    </div>
+    <div class="flow-card">
+        <span>Step 02</span>
+        <h3>Transact</h3>
+        <p>Create transaction details with product, quantity, and price.</p>
+    </div>
+    <div class="flow-card">
+        <span>Step 03</span>
+        <h3>Generate</h3>
+        <p>Build blockchain entries from supply chain transaction data.</p>
+    </div>
+    <div class="flow-card">
+        <span>Step 04</span>
+        <h3>Audit</h3>
+        <p>Review block hashes and previous hashes in the blockchain report.</p>
+    </div>
+</section>
+{% endblock %}

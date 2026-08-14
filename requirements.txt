@@ -1,0 +1,25 @@
+# AgroTrustChain — Python dependencies
+#
+# Install with:
+#     pip install -r requirements.txt
+#
+# Target runtime: Python 3.10 (see .idea/misc.xml).
+# Everything else the project imports (hashlib, json, uuid, datetime, time, os,
+# pprint) is in the standard library.
+
+# Web framework and templating (Jinja2 ships as a Flask dependency).
+Flask>=2.0,<4.0
+
+# SQL Server access via the {SQL Server} ODBC driver.
+# Requires a system ODBC driver to be installed separately — on Windows this
+# ships with SQL Server; on Linux/macOS install msodbcsql18 and update the
+# connection string in src/Constants.py accordingly.
+pyodbc>=4.0.30
+
+# Ethereum middleware. Pulls in the eth-* stack automatically.
+#
+# Version note: the code calls w3.eth.wait_for_transaction_receipt(...) and
+# imports `from web3 import Web3, HTTPProvider`, which is the web3.py v5/v6
+# API. v7 reorganised parts of that surface, so the upper bound is deliberate.
+# If you upgrade past v6, re-test TransactionDetailsModel.insert().
+web3>=5.31,<7.0
