@@ -8,9 +8,10 @@ Every purchase transaction between a farmer, a buyer, and an agriculture board i
 relational database, mirrored onto an Ethereum smart contract through Web3.py, and chained into a
 SHA-256 hash ledger (`hash` / `prevHash`) that can be audited from a web report.
 
+Created by **Madhav Nair**, **Ishaan Chaturvedi**, and **Kunal Saha**.
+
 This repository is the implementation companion to the research paper *"Enhancing and Securing
-Agricultural Products Traceability Using Ethereum Based AgroTrustChain Framework"* by **Madhav V
-Nair**.
+Agricultural Products Traceability Using Ethereum Based AgroTrustChain Framework"*.
 
 ---
 
@@ -33,7 +34,7 @@ Nair**.
 15. [Implementation Status vs. Paper](#implementation-status-vs-paper)
 16. [Known Limitations](#known-limitations)
 17. [Future Work](#future-work)
-18. [Author](#author)
+18. [Authors](#authors)
 
 ---
 
@@ -542,9 +543,13 @@ This is an academic project, and the code has rough edges worth naming before an
 - Deploy to a public or consortium testnet so consumers can verify provenance independently.
 - Add a consumer-facing traceability lookup (scan a code, see the full farm-to-fork history).
 
-## Author
+## Authors
 
-**Madhav V Nair**
+This project was designed and built by:
+
+- **Madhav Nair**
+- **Ishaan Chaturvedi**
+- **Kunal Saha**
 
 Research paper: *Enhancing and Securing Agricultural Products Traceability Using Ethereum Based
 AgroTrustChain Framework* — included in this repository as `Research Paper.pdf`.
