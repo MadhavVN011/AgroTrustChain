@@ -1,49 +1,32 @@
-
-    
 {% extends "Home.html" %}
-
+{% import "_ui.html" as ui %}
+{% from "_permissions.html" import PERMISSIONS %}
+{% block title %}Roles{% endblock %}
 {% block content %}
-    <h2 class="heading"> Role Listing</h2>
-    
-<div class="text-center m-2"><a href="/RoleOperation?operation=Create" class="btn btn-outline-primary btn-sm ">Create</a></div>
-    <table class="table table-bordered table-striped">
-  <thead>
-    <tr>
-      <th scope="col">Role Name</th>
-<th scope="col">Can Role</th>
-<th scope="col">Can User</th>
-
-      <th scope="col">Action</th>
-      
-    </tr>
-  </thead>
-  <tbody>
-        {% if records | length == 0 %}
-            <tr>
-                <td colspan="4">
-                    <div class="alert alert-info" style="display:block" >
-                        <div class="text-center"> <b>No&nbsp;</b><span>Role Found</span>
-                        </div>
-                    </div>
-                </td>
-            </tr>
-        {% endif %}
-    {% for row in records %}
+{% call ui.page_header("Roles", "Permission sets assigned to users. Each module is available only to roles that include it.") %}
+  <a class="btn btn-primary" href="/RoleOperation?operation=Create">{{ ui.icon("plus", 16) }} Add role</a>
+{% endcall %}
+<div class="card">
+  {% if records %}
+  <div class="table-toolbar">{{ ui.search("records", "Search roles") }}<span class="muted" data-count-for="records">{{ records | length }} total</span></div>
+  <div class="table-wrap">
+    <table class="table" id="records">
+      <thead><tr><th>Role</th><th>Permissions</th><th></th></tr></thead>
+      <tbody>
+      {% for row in records %}
+        {% set granted = [] %}{% for key, label, _ in PERMISSIONS if row[key] %}{% set _ = granted.append(label) %}{% endfor %}
         <tr>
-            <td>{{ row.roleName }}</td>
-<td>{{ row.canRole }}</td>
-<td>{{ row.canUsers }}</td>
-
-        <td>
-            <a href="/RoleOperation?operation=Edit&unique_id={{ row.roleID }}" class="btn btn-outline-warning btn-sm ">Edit</a>
-            <a href="/RoleOperation?operation=Delete&unique_id={{ row.roleID }}" class="btn btn-outline-warning btn-sm ">Delete</a>
-        </td>
+          <td class="primary nowrap">{{ row.roleName }}<span class="sub">{{ granted | length }} of {{ PERMISSIONS | length }} modules</span></td>
+          <td>{% for label in granted %}{{ ui.badge(label, "success") }} {% else %}<span class="muted">No access</span>{% endfor %}</td>
+          <td class="actions">{{ ui.row_actions("/RoleOperation?operation=Edit&unique_id=" ~ row.roleID, "/RoleOperation?operation=Delete&unique_id=" ~ row.roleID) }}</td>
         </tr>
-    {% endfor %}
-   </tbody>
-</table>
-<div class="text-center m-2"><a href="/RoleOperation?operation=Create" class="btn btn-outline-primary btn-sm ">Create</a></div>
+      {% endfor %}
+      {{ ui.no_match_row(3) }}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("roles", "No roles yet", "Create a role to grant users access to modules.", "/RoleOperation?operation=Create", "Add role") }}
+  {% endif %}
+</div>
 {% endblock %}
-    
-    
-    

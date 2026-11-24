@@ -1,47 +1,36 @@
-
-    
 {% extends "Home.html" %}
-
+{% import "_ui.html" as ui %}
+{% block title %}Transactions{% endblock %}
 {% block content %}
-    <h2 class="heading"> Transaction Details Listing</h2>
-    
-<div class="text-center m-2"><a href="/TransactionDetailsOperation?operation=Create" class="btn btn-outline-primary btn-sm ">Create</a></div>
-    <table class="table table-bordered table-striped">
-  <thead>
-    <tr>
-      <th scope="col">Order ID</th>
-<th scope="col">Eff Date</th>
-
-      <th scope="col">Action</th>
-      
-    </tr>
-  </thead>
-  <tbody>
-        {% if records | length == 0 %}
-            <tr>
-                <td colspan="3">
-                    <div class="alert alert-info" style="display:block" >
-                        <div class="text-center"> <b>No&nbsp;</b><span>Transaction Details Found</span>
-                        </div>
-                    </div>
-                </td>
-            </tr>
-        {% endif %}
-    {% for row in records %}
+{% call ui.page_header("Transactions", "Sales between farmers and buyers. Each one is recorded on Ethereum when it is saved, then sealed into the hash chain.") %}
+  <a class="btn btn-secondary" href="/BlockChainGeneration">{{ ui.icon("generate", 16) }} Generate blocks</a>
+  <a class="btn btn-primary" href="/TransactionDetailsOperation?operation=Create">{{ ui.icon("plus", 16) }} New transaction</a>
+{% endcall %}
+<div class="card">
+  {% if records %}
+  <div class="table-toolbar">{{ ui.search("records", "Search by product, farmer, buyer, GST…") }}<span class="muted" data-count-for="records">{{ records | length }} total</span></div>
+  <div class="table-wrap">
+    <table class="table" id="records">
+      <thead><tr><th>Order</th><th>Product</th><th>Farmer → Buyer</th><th class="actions">Qty</th><th class="actions">Price</th><th>Status</th><th>Ethereum tx</th><th></th></tr></thead>
+      <tbody>
+      {% for row in records %}
         <tr>
-            <td>{{ row.orderID }}</td>
-<td>{{ row.effDate }}</td>
-
-        <td>
-            <a href="/TransactionDetailsOperation?operation=Edit&unique_id={{ row.orderID }}" class="btn btn-outline-warning btn-sm ">Edit</a>
-            <a href="/TransactionDetailsOperation?operation=Delete&unique_id={{ row.orderID }}" class="btn btn-outline-warning btn-sm ">Delete</a>
-        </td>
+          <td class="primary nowrap">#{{ row.sequenceNumber }}<span class="sub">{{ row.effDate }}</span></td>
+          <td>{{ row.productName or "—" }}<span class="sub">GST {{ row.gstNbr }}</span></td>
+          <td>{{ row.farmerName or "—" }} <span class="muted">→</span> {{ row.buyerName or "—" }}<span class="sub">{{ row.agricultureBoardName or "" }}</span></td>
+          <td class="actions num">{{ "%g" | format(row.qty or 0) }}</td>
+          <td class="actions num">{{ "{:,.2f}".format(row.price or 0) }}</td>
+          <td>{% if row.isBlockChainGenerated %}{{ ui.badge("Sealed", "success") }}{% else %}{{ ui.badge("Pending", "neutral") }}{% endif %}</td>
+          <td>{{ ui.hash(row.ethTxHash, 10) }}</td>
+          <td class="actions">{{ ui.row_actions("/TransactionDetailsOperation?operation=Edit&unique_id=" ~ row.orderID, "/TransactionDetailsOperation?operation=Delete&unique_id=" ~ row.orderID) }}</td>
         </tr>
-    {% endfor %}
-   </tbody>
-</table>
-<div class="text-center m-2"><a href="/TransactionDetailsOperation?operation=Create" class="btn btn-outline-primary btn-sm ">Create</a></div>
+      {% endfor %}
+      {{ ui.no_match_row(8) }}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("transaction", "No transactions yet", "Record the first sale between a farmer and a buyer.", "/TransactionDetailsOperation?operation=Create", "New transaction") }}
+  {% endif %}
+</div>
 {% endblock %}
-    
-    
-    

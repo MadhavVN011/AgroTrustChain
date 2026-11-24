@@ -1,47 +1,56 @@
 {% extends "Home.html" %}
-
+{% import "_ui.html" as ui %}
+{% block title %}Reputation{% endblock %}
 {% block content %}
-<h2 class="heading">Supplier Reputation</h2>
-<p>Scores are read live from the TraceabilityManagement contract. Each farmer's consensus weight is
-<b>W = (&alpha;&middot;Q + &beta;&middot;R) / 100</b>, combining the Q-Score (inspected product quality) and the
-R-Score (history of honest reporting).{% if params %} Current parameters: &alpha; = {{ params.alpha }}, &beta; = {{ params.beta }},
-reward +{{ params.honestReward }} per consistent report, penalty &minus;{{ params.penalty }} per inconsistent one
-(tolerance {{ params.tolerance }}), suspension below R = {{ params.suspendBelow }}.{% endif %}</p>
-{% if chain_error %}<div class="alert alert-warning">Could not read scores from Ethereum: {{ chain_error }}</div>{% endif %}
-<table class="table table-bordered table-striped">
-  <thead>
-    <tr>
-      <th scope="col">Farmer</th>
-      <th scope="col">Q-Score</th>
-      <th scope="col">R-Score</th>
-      <th scope="col">Weight W</th>
-      <th scope="col">Batches</th>
-      <th scope="col">Penalties</th>
-      <th scope="col">Status</th>
-    </tr>
-  </thead>
-  <tbody>
-  {% for row in rows %}
-    <tr>
-      <td>{{ row.farmerName }}</td>
-      {% if row.registered %}
-        <td>{{ row.q }}</td><td>{{ row.r }}</td><td><b>{{ row.weight }}</b></td><td>{{ row.batches }}</td><td>{{ row.penalties }}</td>
-        <td>
-          {% if row.suspended %}
-            <span class="badge bg-danger">Suspended</span>
-            <form method="post" action="/ProcessReinstateSupplier" class="d-inline inline-action">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-              <input type="hidden" name="farmerID" value="{{ row.farmerID }}"/>
-              <button type="submit" class="btn btn-outline-warning btn-sm">Reinstate</button>
-            </form>
-          {% else %}<span class="badge bg-success">Active</span>{% endif %}
-        </td>
-      {% else %}
-        <td colspan="5" class="text-muted">No batches registered yet{% if row.weight is defined %} (starting weight {{ row.weight }}){% endif %}</td>
-        <td><span class="badge bg-secondary">Not registered</span></td>
-      {% endif %}
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
+{{ ui.page_header("Supplier reputation", "Scores are read live from the TraceabilityManagement contract. A farmer's consensus weight combines the Q-Score (inspected product quality) and the R-Score (history of honest reporting).") }}
+{% if chain_error %}{{ ui.alert("warning", "Could not read scores from Ethereum.", chain_error) }}{% endif %}
+{% if params %}
+<div class="card" style="margin-bottom:20px">
+  <div class="card-body" style="display:flex;gap:28px;flex-wrap:wrap;align-items:center">
+    <div><div class="muted" style="font-size:12px">Weight</div><div class="mono" style="font-size:14px;color:var(--text)">W = ({{ params.alpha }}·Q + {{ params.beta }}·R) / 100</div></div>
+    <div><div class="muted" style="font-size:12px">Consistent report</div><div class="num" style="font-weight:600">+{{ params.honestReward }} R</div></div>
+    <div><div class="muted" style="font-size:12px">Inconsistent report</div><div class="num" style="font-weight:600">−{{ params.penalty }} R</div></div>
+    <div><div class="muted" style="font-size:12px">Tolerance</div><div class="num" style="font-weight:600">± {{ params.tolerance }}</div></div>
+    <div><div class="muted" style="font-size:12px">Suspended below</div><div class="num" style="font-weight:600">R = {{ params.suspendBelow }}</div></div>
+  </div>
+</div>
+{% endif %}
+<div class="card">
+  {% if rows %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>Farmer</th><th>Q-Score</th><th>R-Score</th><th>Weight W</th><th class="actions">Batches</th><th class="actions">Penalties</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for row in rows %}
+        <tr class="{{ 'row-danger' if row.suspended }}">
+          <td class="primary">{{ row.farmerName }}</td>
+          {% if row.registered %}
+            <td>{{ ui.meter(row.q) }}</td>
+            <td>{{ ui.meter(row.r) }}</td>
+            <td><b class="num">{{ row.weight }}</b></td>
+            <td class="actions num">{{ row.batches }}</td>
+            <td class="actions num">{{ row.penalties }}</td>
+            <td class="nowrap">
+              {% if row.suspended %}
+                {{ ui.badge("Suspended", "danger") }}
+                <form method="post" action="/ProcessReinstateSupplier" class="inline-form" data-confirm="Reinstate {{ row.farmerName }}? Their R-Score is raised to the suspension threshold.">
+                  {{ ui.csrf_field() }}
+                  <input type="hidden" name="farmerID" value="{{ row.farmerID }}"/>
+                  <button type="submit" class="btn btn-secondary btn-sm" style="margin-left:6px">{{ ui.icon("undo", 14) }} Reinstate</button>
+                </form>
+              {% else %}{{ ui.badge("Active", "success") }}{% endif %}
+            </td>
+          {% else %}
+            <td colspan="5" class="muted">No batches registered yet{% if row.weight is defined %} · starting weight {{ row.weight }}{% endif %}</td>
+            <td>{{ ui.badge("Not registered", "neutral") }}</td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("reputation", "No farmers yet", "Farmers appear here with their scores once they are added.", "/FarmerOperation?operation=Create", "Add farmer") }}
+  {% endif %}
+</div>
 {% endblock %}

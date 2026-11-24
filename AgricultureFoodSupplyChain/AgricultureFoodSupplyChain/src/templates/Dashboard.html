@@ -1,76 +1,115 @@
 {% extends "Home.html" %}
-
+{% import "_ui.html" as ui %}
+{% block title %}Dashboard{% endblock %}
 {% block content %}
-<section class="page-hero">
-    <p class="eyebrow">Major project dashboard</p>
-    <h2>Trace agricultural products from board approval to farmer supply, buyer purchase, transaction record, and blockchain verification.</h2>
-    <p>Use this workspace to manage participants, register products, capture movement of goods, and generate tamper-aware blockchain reports for the supply chain.</p>
+{% call ui.page_header("Dashboard", "An overview of the supply chain, the integrity of the ledger and supplier reputation.") %}
+  {% if nav_role and nav_role.canTransactionDetails %}<a class="btn btn-primary" href="/TransactionDetailsOperation?operation=Create">{{ ui.icon("plus", 16) }} New transaction</a>{% endif %}
+{% endcall %}
+
+{% set c = counts %}
+<section class="stats">
+  <div class="stat">
+    <div class="stat-label">{{ ui.icon("transaction", 16) }} Transactions</div>
+    <div class="stat-value">{{ c.transactions }}</div>
+    <div class="stat-sub">{{ c.sealed }} sealed · {{ c.transactions - c.sealed }} pending</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">{{ ui.icon("farmer", 16) }} Farmers</div>
+    <div class="stat-value">{{ c.farmers }}</div>
+    <div class="stat-sub">{% if suspended is not none %}{{ suspended | length }} suspended by reputation{% else %}{{ c.buyers }} buyers{% endif %}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">{{ ui.icon("batch", 16) }} Batches</div>
+    <div class="stat-value">{{ c.batches }}</div>
+    <div class="stat-sub">{{ c.pending_batches }} awaiting inspection</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">{{ ui.icon("product", 16) }} Catalogue</div>
+    <div class="stat-value">{{ c.products }}</div>
+    <div class="stat-sub">products · {{ c.boards }} boards · {{ c.buyers }} buyers</div>
+  </div>
 </section>
 
-<section class="stat-grid">
-    <div class="stat-card">
-        <span>Core entities</span>
-        <strong>5</strong>
-        <p>Boards, farmers, buyers, products, and transactions.</p>
+<div class="grid grid-main-side">
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Recent transactions</div><div class="card-desc">The latest records written to the ledger.</div></div>
+      {% if nav_role and nav_role.canTransactionDetails %}<a class="btn btn-secondary btn-sm" href="/TransactionDetailsListing">View all {{ ui.icon("arrow-right", 14) }}</a>{% endif %}
     </div>
-    <div class="stat-card">
-        <span>Verification layer</span>
-        <strong>Hash</strong>
-        <p>Transaction details are organized for blockchain reporting.</p>
+    {% if recent %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Order</th><th>Product</th><th>Farmer → Buyer</th><th class="actions">Qty</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for t in recent %}
+          <tr>
+            <td class="primary nowrap">#{{ t.sequenceNumber }}<span class="sub">{{ t.effDate }}</span></td>
+            <td>{{ t.productName or "—" }}</td>
+            <td>{{ t.farmerName or "—" }} <span class="muted">→</span> {{ t.buyerName or "—" }}</td>
+            <td class="actions num">{{ "%g" | format(t.qty or 0) }}</td>
+            <td>{% if t.isBlockChainGenerated %}{{ ui.badge("Sealed", "success") }}{% else %}{{ ui.badge("Pending", "neutral") }}{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
     </div>
-    <div class="stat-card">
-        <span>Access control</span>
-        <strong>Roles</strong>
-        <p>Permissions keep each module controlled by user role.</p>
-    </div>
-    <div class="stat-card">
-        <span>Project focus</span>
-        <strong>Trust</strong>
-        <p>Improves transparency across the food supply chain.</p>
-    </div>
-</section>
+    {% elif nav_role and nav_role.canTransactionDetails %}
+      {{ ui.empty("transaction", "No transactions yet", "Record the first sale between a farmer and a buyer. It is written to Ethereum as soon as it is saved.", "/TransactionDetailsOperation?operation=Create", "New transaction") }}
+    {% else %}
+      {{ ui.empty("lock", "No access", "Your role does not include transactions.") }}
+    {% endif %}
+  </div>
 
-<section class="module-grid">
-    <div class="module-card">
-        <span>Catalog</span>
-        <h3>Products</h3>
-        <p>Maintain crop and food product details with packing size and price.</p>
-        <a class="btn btn-outline-primary btn-sm" href="/ProductListing">Manage Products</a>
+  <div class="stack">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Ledger integrity</div>{{ ui.icon("shield", 18, "muted") }}</div>
+      <div class="card-body">
+        {% if chain %}
+          {% set total = chain.valid + chain.tampered %}
+          {% if total == 0 %}
+            <p class="text-2">No blocks sealed yet.</p>
+          {% elif chain.intact and chain.anchor == "match" %}
+            <p>{{ ui.badge("Verified", "success") }}</p>
+            <p class="text-2" style="margin-top:10px">All {{ total }} sealed blocks verify, and the chain tip matches the anchor on Ethereum.</p>
+          {% elif chain.intact %}
+            <p>{{ ui.badge("Anchor unconfirmed", "warning") }}</p>
+            <p class="text-2" style="margin-top:10px">Hashes and links verify, but the Ethereum anchor could not be checked.</p>
+          {% else %}
+            <p>{{ ui.badge("Tampering detected", "danger") }}</p>
+            <p class="text-2" style="margin-top:10px">{{ chain.tampered }} of {{ total }} blocks failed verification{% if chain.anchor == "mismatch" %}, and the chain no longer matches its Ethereum anchor{% endif %}.</p>
+          {% endif %}
+          {% set pct = (100 * c.sealed / c.transactions) | round | int if c.transactions else 0 %}
+          <div style="margin-top:16px">
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span class="text-2">Sealed</span><span class="num">{{ pct }}%</span></div>
+            <div class="progress"><span style="width:{{ pct }}%"></span></div>
+          </div>
+          <div style="margin-top:16px;display:flex;gap:8px">
+            <a class="btn btn-secondary btn-sm" href="/BlockChainReport">Open report</a>
+            {% if chain.pending %}<a class="btn btn-ghost btn-sm" href="/BlockChainGeneration">Seal {{ chain.pending }} pending</a>{% endif %}
+          </div>
+        {% elif chain_error %}
+          {{ ui.alert("warning", "Could not verify the ledger", chain_error) }}
+        {% else %}
+          <p class="text-2">Your role does not include the blockchain pages.</p>
+        {% endif %}
+      </div>
     </div>
-    <div class="module-card">
-        <span>Participants</span>
-        <h3>Farmers and Buyers</h3>
-        <p>Record the people and organizations involved in the supply chain.</p>
-        <a class="btn btn-outline-primary btn-sm" href="/FarmerListing">View Farmers</a>
-    </div>
-    <div class="module-card">
-        <span>Governance</span>
-        <h3>Agriculture Board</h3>
-        <p>Keep board identity and contact details ready for transaction traceability.</p>
-        <a class="btn btn-outline-primary btn-sm" href="/AgricultureBoardListing">Open Boards</a>
-    </div>
-</section>
 
-<section class="timeline-grid">
-    <div class="flow-card">
-        <span>Step 01</span>
-        <h3>Register</h3>
-        <p>Add verified products, farmers, buyers, and agriculture boards.</p>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Supplier reputation</div>{{ ui.icon("reputation", 18, "muted") }}</div>
+      <div class="card-body">
+        {% if suspended is none %}
+          <p class="text-2">{% if nav_role and nav_role.canFarmer %}Reputation scores could not be read from Ethereum.{% else %}Your role does not include reputation.{% endif %}</p>
+        {% elif suspended %}
+          <p>{{ ui.badge(suspended | length ~ " suspended", "danger") }}</p>
+          <p class="text-2" style="margin-top:10px">{{ suspended | join(", ") }} {{ "is" if suspended | length == 1 else "are" }} suspended after repeated inconsistent quality reports and cannot trade.</p>
+          <div style="margin-top:16px"><a class="btn btn-secondary btn-sm" href="/Reputation">Review reputation</a></div>
+        {% else %}
+          <p>{{ ui.badge("All suppliers in good standing", "success") }}</p>
+          <div style="margin-top:16px;display:flex;gap:8px"><a class="btn btn-secondary btn-sm" href="/Reputation">View scores</a><a class="btn btn-ghost btn-sm" href="/BatchListing">Batches</a></div>
+        {% endif %}
+      </div>
     </div>
-    <div class="flow-card">
-        <span>Step 02</span>
-        <h3>Transact</h3>
-        <p>Create transaction details with product, quantity, and price.</p>
-    </div>
-    <div class="flow-card">
-        <span>Step 03</span>
-        <h3>Generate</h3>
-        <p>Build blockchain entries from supply chain transaction data.</p>
-    </div>
-    <div class="flow-card">
-        <span>Step 04</span>
-        <h3>Audit</h3>
-        <p>Review block hashes and previous hashes in the blockchain report.</p>
-    </div>
-</section>
+  </div>
+</div>
 {% endblock %}

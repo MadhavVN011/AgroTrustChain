@@ -155,19 +155,19 @@ AgroTrustChain/
 │           ├── RoleModel.py                       # DAO: Role table (permission flags)
 │           ├── UsersModel.py                      # DAO: Users table
 │           ├── TransactionDetailsModel.py         # DAO; records on Ethereum before inserting
-│           ├── templates/                         # 22 Jinja2 templates
-│           │   ├── Home.html                      # Base layout (sidebar + topbar)
-│           │   ├── Login.html, Dashboard.html, Information.html
-│           │   ├── ChangePassword.html
-│           │   ├── <Entity>Listing.html           # Table view per entity
-│           │   ├── <Entity>Operation.html         # Create / Edit / Delete form per entity
-│           │   ├── BlockChainGeneration.html      # Pending vs. generated block counts
-│           │   ├── BlockchainGenerationResult.html
-│           │   └── BlockChainReport.html          # Hash / prevHash audit trail
-│           └── static/                            # Bootstrap, jQuery, custom CSS, assets
-│               ├── agri-modern.css                # Project theme
-│               ├── charts/, UPLOADED_FILES/       # Output/upload directories
-│               └── bootstrap.*, jquery.min.js, metisMenu, simplebar, waves
+│           ├── templates/                         # Jinja2 templates
+│           │   ├── Home.html                      # App shell: sidebar, user card, theme toggle
+│           │   ├── _ui.html                       # Shared macros: icons, page header, fields, badges, tables
+│           │   ├── Dashboard.html, Login.html, Information.html, ChangePassword.html
+│           │   ├── <Entity>Listing.html           # Searchable table per entity
+│           │   ├── <Entity>Operation.html         # Create / edit form, delete confirmation
+│           │   ├── Batch*.html, Reputation.html   # Quality & reputation pages
+│           │   └── BlockChain*.html               # Generate blocks, hash-chain report
+│           └── static/
+│               ├── app.css                        # Design tokens (light + dark) and components
+│               ├── app.js                         # Sidebar, table search, copy buttons, theme switch
+│               ├── favicon.svg
+│               └── charts/, UPLOADED_FILES/       # Output/upload directories
 │
 ├── AgricultureFoodSupplyChain-Truffle/            # Ethereum / Truffle project
 │   ├── contracts/
@@ -205,6 +205,9 @@ AgroTrustChain/
 - **Database changes go in `migrate.sql`.** It runs on every Docker start and by hand after a
   manual restore, so every statement must be idempotent: guard with `IF NOT EXISTS` / `IF EXISTS`.
   Do not edit the `.bak`. It is the seed that everyone restores from.
+- **UI building blocks.** Use the macros in `templates/_ui.html` (`page_header`, `field`, `select`, `badge`, `empty`,
+  `hash`, `row_actions`, `form_footer`, `icon`) and the tokens in `static/app.css` rather than one-off styles. Colours
+  come from CSS variables, so new components get the dark theme for free; never hard-code a light-only colour.
 - **Forms need a CSRF token.** Every `<form method="post">` must include
   `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>`; POSTs without it get a 400.
 - **Passwords go through `Passwords.py`.** Never store or compare them directly.

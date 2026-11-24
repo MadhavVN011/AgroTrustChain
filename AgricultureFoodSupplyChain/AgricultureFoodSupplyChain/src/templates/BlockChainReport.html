@@ -1,88 +1,67 @@
 {% extends "Home.html" %}
-
+{% import "_ui.html" as ui %}
+{% block title %}Blockchain report{% endblock %}
 {% block content %}
-<style>
-    .chain-hash { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .8rem; word-break: break-all; }
-    .chain-table td { vertical-align: top; }
-    .chain-table .col-block { width: 6rem; }
-    .chain-table .col-status { width: 16rem; }
-    .chain-table tr.block-tampered td { background: #fdecea; }
-    .chain-table tr.block-pending td { color: #6c757d; }
-</style>
+{% call ui.page_header("Blockchain report", "Every hash is recomputed, every link checked, and the chain tip compared with its anchor on Ethereum, so a sealed record that was edited, deleted, re-ordered or rewritten is flagged.", [("Blockchain", None), ("Report", None)]) %}
+  <a class="btn btn-secondary" href="/BlockChainGeneration">{{ ui.icon("generate", 16) }} Generate blocks</a>
+{% endcall %}
 
-<h2 class="heading">Blockchain Report</h2>
-
-<p>Every sealed transaction's SHA-256 hash covers all of its fields, its sequence number and the previous block's hash,
-and the tip of the chain is anchored on Ethereum each time blocks are generated. This report recomputes each hash, checks
-each link and compares the tip with the Ethereum anchor, so a sealed record that was edited, deleted, re-ordered or
-rewritten is flagged.</p>
-
-{% if summary.valid + summary.tampered == 0 and summary.anchor != 'mismatch' %}
-    <div class="alert alert-info">No blocks have been sealed yet. Use <a href="/BlockChainGeneration">Generate Blocks</a> to seal pending transactions.</div>
+{% set sealed = summary.valid + summary.tampered %}
+{% if sealed == 0 and summary.anchor != 'mismatch' %}
+  {{ ui.alert("info", "No blocks have been sealed yet.", "Use Generate Blocks to seal pending transactions.") }}
 {% elif summary.intact and summary.anchor == 'match' %}
-    <div class="alert alert-success"><b>Chain intact.</b> All {{ summary.valid }} sealed block(s) verified, and the chain tip matches the anchor on Ethereum
-        (contract <span class="chain-hash">{{ summary.anchorAddress }}</span>).
-        {% if summary.pending %}{{ summary.pending }} transaction(s) are waiting to be sealed.{% endif %}</div>
+  <div class="alert alert-success" role="status">{{ ui.icon("check-circle", 18) }}<div><div class="alert-title">Chain intact.</div><div class="alert-body">All {{ summary.valid }} sealed block(s) verified, and the chain tip matches the anchor on Ethereum{% if summary.anchorAddress %} (contract <span class="mono">{{ summary.anchorAddress }}</span>){% endif %}.{% if summary.pending %} {{ summary.pending }} transaction(s) are waiting to be sealed.{% endif %}</div></div></div>
 {% elif summary.intact %}
-    <div class="alert alert-warning"><b>Hashes and links verified, but the Ethereum anchor could not be confirmed.</b>
-        {{ summary.anchorMessage }}</div>
+  {{ ui.alert("warning", "Hashes and links verified, but the Ethereum anchor could not be confirmed.", summary.anchorMessage) }}
 {% else %}
-    <div class="alert alert-danger"><b>Tampering detected.</b>
-        {% if summary.tampered %}{{ summary.tampered }} of {{ summary.valid + summary.tampered }} sealed block(s) failed verification. The highlighted rows below show where.{% endif %}
-        {% if summary.anchor == 'mismatch' %}<div class="mt-2">{{ summary.anchorMessage }}</div>{% endif %}
-        {% if summary.anchor in ('missing', 'unavailable') %}<div class="mt-2">{{ summary.anchorMessage }}</div>{% endif %}</div>
+  <div class="alert alert-danger" role="alert">{{ ui.icon("alert", 18) }}<div><div class="alert-title">Tampering detected.</div><div class="alert-body">
+    {% if summary.tampered %}{{ summary.tampered }} of {{ sealed }} sealed block(s) failed verification. The flagged blocks below show where.{% endif %}
+    {% if summary.anchor in ('mismatch', 'missing', 'unavailable') and summary.anchorMessage %}<div style="margin-top:6px">{{ summary.anchorMessage }}</div>{% endif %}
+  </div></div></div>
 {% endif %}
 
-<table class="table table-bordered chain-table">
-    <thead>
-        <tr>
-            <th scope="col" class="col-block">Block</th>
-            <th scope="col" class="col-status">Status</th>
-            <th scope="col">Transaction</th>
-            <th scope="col">Hash / Previous hash</th>
-        </tr>
-    </thead>
-    <tbody>
-    {% if blocks | length == 0 %}
-        <tr><td colspan="4"><div class="alert alert-info text-center">No Transactions Found</div></td></tr>
-    {% endif %}
+<section class="stats">
+  <div class="stat"><div class="stat-label">{{ ui.icon("check-circle", 16) }} Verified</div><div class="stat-value">{{ summary.valid }}</div></div>
+  <div class="stat"><div class="stat-label">{{ ui.icon("alert", 16) }} Tampered</div><div class="stat-value">{{ summary.tampered }}</div></div>
+  <div class="stat"><div class="stat-label">{{ ui.icon("clock", 16) }} Pending</div><div class="stat-value">{{ summary.pending }}</div></div>
+  <div class="stat"><div class="stat-label">{{ ui.icon("ethereum", 16) }} Ethereum anchor</div><div class="stat-value" style="font-size:18px;margin-top:16px">{{ {"match": "Matches", "mismatch": "Mismatch", "missing": "Not anchored", "unavailable": "Unavailable"}.get(summary.anchor, "—") }}</div></div>
+</section>
+
+<div class="card">
+  <div class="card-header"><div><div class="card-title">Blocks</div><div class="card-desc">Oldest first. Each block's “prev” must equal the hash of the block above it.</div></div></div>
+  {% if blocks %}
+  <div class="chain">
     {% for block in blocks %}
-        <tr class="block-{{ block.status }}">
-            <td>
-                {% if block.blockNumber %}#{{ block.blockNumber }}{% else %}&mdash;{% endif %}
-                <div class="text-muted small">seq {{ block.sequenceNumber }}</div>
-            </td>
-            <td>
-                {% if block.status == 'valid' %}
-                    <span class="badge bg-success">Verified</span>
-                {% elif block.status == 'tampered' %}
-                    <span class="badge bg-danger">Tampered</span>
-                    <ul class="small mb-0 ps-3">
-                    {% for problem in block.problems %}<li>{{ problem }}</li>{% endfor %}
-                    </ul>
-                {% else %}
-                    <span class="badge bg-secondary">Pending</span>
-                {% endif %}
-            </td>
-            <td class="small">
-                <div><b>Order:</b> {{ block.orderID }}</div>
-                <div><b>Date:</b> {{ block.effDate }} &nbsp; <b>GST:</b> {{ block.gstNbr }}</div>
-                <div><b>Agriculture Board:</b> {{ block.agricultureBoardName or block.agricultureBoardID or '—' }}</div>
-                <div><b>Farmer:</b> {{ block.farmerName or block.farmerID or '—' }}</div>
-                <div><b>Buyer:</b> {{ block.buyerName or block.buyerID or '—' }}</div>
-                <div><b>Product:</b> {{ block.productName or block.productID or '—' }} &nbsp; <b>Price:</b> {{ block.price }} &nbsp; <b>Qty:</b> {{ block.qty }}</div>
-            </td>
-            <td>
-                {% if block.status == 'pending' %}
-                    <span class="text-muted small">Not sealed yet</span>
-                {% else %}
-                    <div class="chain-hash"><b>hash</b> {{ block.hash }}</div>
-                    <div class="chain-hash text-muted"><b>prev</b> {{ block.prevHash or '(genesis)' }}</div>
-                {% endif %}
-                {% if block.ethTxHash %}<div class="chain-hash text-muted mt-1"><b>eth tx</b> {{ block.ethTxHash }}</div>{% endif %}
-            </td>
-        </tr>
+    <div class="block {{ block.status }}">
+      <div class="block-rail"><span class="block-dot">{% if block.status == 'valid' %}{{ ui.icon("check", 12) }}{% elif block.status == 'tampered' %}{{ ui.icon("alert", 12) }}{% else %}{{ ui.icon("clock", 12) }}{% endif %}</span></div>
+      <div class="block-body">
+        <div class="block-head">
+          <span class="block-num">{% if block.blockNumber %}Block #{{ block.blockNumber }}{% else %}Pending{% endif %}</span>
+          {% if block.status == 'valid' %}{{ ui.badge("Verified", "success") }}{% elif block.status == 'tampered' %}{{ ui.badge("Tampered", "danger") }}{% else %}{{ ui.badge("Not sealed", "neutral") }}{% endif %}
+          <span class="muted" style="font-size:13px">seq {{ block.sequenceNumber }} · {{ block.effDate }}</span>
+        </div>
+        <dl class="block-meta">
+          <div><dt>Product</dt><dd>{{ block.productName or block.productID or '—' }}</dd></div>
+          <div><dt>Farmer</dt><dd>{{ block.farmerName or block.farmerID or '—' }}</dd></div>
+          <div><dt>Buyer</dt><dd>{{ block.buyerName or block.buyerID or '—' }}</dd></div>
+          <div><dt>Quantity · Price</dt><dd class="num">{{ "%g" | format(block.qty or 0) }} · {{ "{:,.2f}".format(block.price or 0) }}</dd></div>
+        </dl>
+        {% if block.problems %}<ul class="block-problems">{% for problem in block.problems %}<li>{{ problem }}</li>{% endfor %}</ul>{% endif %}
+        {% if block.status != 'pending' or block.ethTxHash %}
+        <div class="block-hashes">
+          {% if block.status != 'pending' %}
+          <div class="row"><span class="k">hash</span>{{ ui.hash(block.hash) }}</div>
+          <div class="row"><span class="k">prev</span>{% if block.prevHash %}{{ ui.hash(block.prevHash) }}{% else %}<span class="muted mono">(genesis)</span>{% endif %}</div>
+          {% endif %}
+          {% if block.ethTxHash %}<div class="row"><span class="k">eth tx</span>{{ ui.hash(block.ethTxHash) }}</div>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
     {% endfor %}
-    </tbody>
-</table>
+  </div>
+  {% else %}
+    {{ ui.empty("shield", "No transactions yet", "Blocks appear here once transactions are recorded and sealed.") }}
+  {% endif %}
+</div>
 {% endblock %}

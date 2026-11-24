@@ -128,7 +128,7 @@ Under Docker each box above is a container: `db` (SQL Server 2022), `ganache`, a
 | Language (backend) | Python 3.10 |
 | Web framework | Flask |
 | Templating | Jinja2 |
-| Frontend | Bootstrap 5, jQuery, custom CSS (`agri-modern.css`) |
+| Frontend | Jinja2 templates on a small in-house design system (`static/app.css`, `static/app.js`, inline SVG icons); light and dark themes; no CSS or JS framework |
 | Database | Microsoft SQL Server (SQL Server Express), accessed via `pyodbc` |
 | Blockchain | Ethereum (private) via Ganache, network id `5777`, RPC `127.0.0.1:7545` |
 | Smart contracts | Solidity `0.8.10` (compiled with optimizer, `evmVersion: byzantium`) |

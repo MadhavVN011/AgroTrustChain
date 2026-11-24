@@ -152,6 +152,6 @@ def test_reputation_page_shows_on_chain_scores(client, fake_db, chain):
     farmers = lambda sql, params: [("F1", "Green Valley"), ("F2", "Shady Acres")] if "FROM Farmer" in sql else None
     logged_in(client, fake_db, extra=farmers)
     page = client.get("/Reputation").get_data(as_text=True)
-    assert "Green Valley" in page and "<b>67</b>" in page
+    assert "Green Valley" in page and ">67</b>" in page
     assert "Suspended" in page and "Reinstate" in page
     assert page.index("Green Valley") < page.index("Shady Acres")  # sorted by weight

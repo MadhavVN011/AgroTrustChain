@@ -1,52 +1,51 @@
+{% import "_ui.html" as ui %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>AgriChain Login</title>
-    <link href="./static/bootstrap.min.css" rel="stylesheet">
-    <link href="./static/agri-modern.css" rel="stylesheet">
+    {{ ui.theme_boot() }}
+    <title>Sign in · AgroTrustChain</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
-    <main class="login-page">
-        <section class="login-visual">
-            <div>
-                <p class="eyebrow">Blockchain enabled food supply chain</p>
-                <h1>Transparent agriculture tracking from farm source to buyer record.</h1>
-                <p>A modern project interface for farmers, buyers, agriculture boards, product records, transactions, and blockchain verification.</p>
+<div class="auth">
+    <aside class="auth-aside">
+        <a class="brand" href="/">{{ ui.logo(36) }}<span><span class="brand-name">AgroTrustChain</span><span class="brand-sub">Supply chain traceability</span></span></a>
+        <div>
+            <h2 class="auth-headline">Farm-to-fork records that can't be quietly rewritten.</h2>
+            <p class="auth-lead">Every transaction is recorded on Ethereum, sealed into a verifiable hash chain, and checked against the reputation of the farmers behind it.</p>
+            <div class="auth-points">
+                <div class="auth-point">{{ ui.icon("shield", 20) }}<div><b>Tamper-evident ledger.</b> <span>Edits, deletions and rewrites are flagged on the audit report.</span></div></div>
+                <div class="auth-point">{{ ui.icon("certificate", 20) }}<div><b>On-chain compliance.</b> <span>Certificates, expiry dates and quality are checked before a batch is admitted.</span></div></div>
+                <div class="auth-point">{{ ui.icon("reputation", 20) }}<div><b>Reputation-weighted trust.</b> <span>Inconsistent quality claims are penalised automatically.</span></div></div>
             </div>
-        </section>
+        </div>
+        <p class="auth-foot">Private Ethereum network · SQL Server · Flask</p>
+    </aside>
 
-        <section class="login-panel">
-            <div class="login-card">
-                <span class="brand-mark">AC</span>
-                <h2>Welcome back</h2>
-                <p class="subtitle">Sign in to continue to the AgriChain control center.</p>
-
-                {% if processResult %}
-                <div class="alert alert-danger">{{ processResult }}</div>
-                {% endif %}
-
-                <form action="/processLogin" method="post">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    <div class="mb-3">
-                        <label class="form-label" for="emailid">Email ID</label>
-                        <input type="text" class="form-control" id="emailid" name="emailid" placeholder="Enter email ID" required>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label" for="password">Password</label>
-                        <input type="password" class="form-control" id="password" name="password" placeholder="Enter password" required>
-                    </div>
-
-                    <button class="btn btn-primary" type="submit">Log In</button>
-                </form>
-
-                <p class="login-foot">&copy; <script>document.write(new Date().getFullYear())</script> AgriChain Food Supply Chain.</p>
-            </div>
-        </section>
+    <main class="auth-main">
+        {{ ui.theme_toggle("auth-theme") }}
+        <div class="auth-card">
+            <h1>Sign in</h1>
+            <p class="lead">Use your AgroTrustChain account to continue.</p>
+            {% if processResult %}{{ ui.alert("danger", processResult) }}{% endif %}
+            <form action="/processLogin" method="post">
+                {{ ui.csrf_field() }}
+                <div class="field">
+                    <label for="emailid">Email</label>
+                    <input class="input" type="email" id="emailid" name="emailid" autocomplete="username" placeholder="you@example.org" required autofocus>
+                </div>
+                <div class="field">
+                    <label for="password">Password</label>
+                    <input class="input" type="password" id="password" name="password" autocomplete="current-password" required>
+                </div>
+                <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+            </form>
+        </div>
     </main>
-    <script src="./static/jquery.min.js"></script>
-    <script src="./static/bootstrap.bundle.min.js"></script>
+</div>
+<script src="/static/app.js"></script>
 </body>
 </html>

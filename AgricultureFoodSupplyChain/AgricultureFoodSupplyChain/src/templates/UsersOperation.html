@@ -1,73 +1,35 @@
-
-    {% extends "Home.html" %}
-
+{% extends "Home.html" %}
+{% import "_ui.html" as ui %}
+{% block title %}{{ {"Create": "Add", "Edit": "Edit", "Delete": "Delete"}.get(operation, operation) }} user{% endblock %}
 {% block content %}
-    <h2 class="heading">{{operation}}  Users</h2>
-    <form id="frm" name="frm" method="post" action="/ProcessUsersOperation" enctype="multipart/form-data">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-               
-      
-         <input type="hidden" name="operation" value="{{ operation }}"/>
-         <input type="hidden" name="userID" value="{{ row.userID }}"/>
-
-        
-
-                                            <div class="form-group row">
-                                    <label for="userName" class="col-sm-3 col-form-label">Username </label>
-                                    <div class="col-sm-9">
-                                        <input type="text" class="form-control" name="userName" id="userName"  value="{{ row.userName }}" required {{'readonly' if operation == 'Delete'}} />
-                                    </div>
-                                </div>
-                                            
-                                            <div class="form-group row">
-                                    <label for="emailid" class="col-sm-3 col-form-label">Emailid </label>
-                                    <div class="col-sm-9">
-                                        <input type="email" class="form-control" name="emailid" id="emailid"  value="{{ row.emailid }}" required {{'readonly' if operation == 'Delete'}} />
-                                    </div>
-                                </div>
-                                            
-                                            <div class="form-group row">
-                                    <label for="password" class="col-sm-3 col-form-label">Password </label>
-                                    <div class="col-sm-9">
-                                        <input type="password" class="form-control" name="password" id="password" autocomplete="new-password" {{'required' if operation == 'Create'}} {{'readonly' if operation == 'Delete'}} />
-                                        {% if operation == 'Edit' %}<small class="text-muted">Leave blank to keep the current password.</small>{% endif %}
-                                    </div>
-                                </div>
-                                            
-                                            <div class="form-group row">
-                                    <label for="contactNo" class="col-sm-3 col-form-label">Contactno </label>
-                                    <div class="col-sm-9">
-                                        <input type="text" class="form-control" name="contactNo" id="contactNo"  value="{{ row.contactNo }}" required {{'readonly' if operation == 'Delete'}} />
-                                    </div>
-                                </div>
-                                            
-                                            <div class="form-group row">
-    <label for="isActive" class="col-sm-3 col-form-label">Isactive </label>
-    <div class="col-sm-9">
-        <input type="checkbox"  name="isActive" id="isActive"  {{ 'checked' if row.isActive == 1 }} {{'disabled' if operation == 'Delete'}} />
+{% set verb = {"Create": "Add", "Edit": "Edit", "Delete": "Delete"}.get(operation, operation) %}
+{{ ui.page_header(verb ~ " user", None, [("Users", "/UsersListing"), (verb, None)]) }}
+<form class="card{{ ' danger-card' if operation == 'Delete' }}" method="post" action="/ProcessUsersOperation" style="max-width:880px">
+  {{ ui.csrf_field() }}
+  <input type="hidden" name="operation" value="{{ operation }}"/>
+  <input type="hidden" name="userID" value="{{ row.userID }}"/>
+  {% if operation == "Delete" %}
+  <div class="card-header"><div><div class="card-title">Delete {{ row.userName }}?</div><div class="card-desc">They will no longer be able to sign in. To keep their history but block access, edit the user and switch off “Active” instead.</div></div></div>
+  <div class="card-body"><dl class="dl"><dt>Email</dt><dd>{{ row.emailid }}</dd><dt>Contact number</dt><dd>{{ row.contactNo or "—" }}</dd></dl></div>
+  {% else %}
+  <div class="card-body">
+    <div class="form-grid">
+      {{ ui.field("userName", "Full name", row.userName) }}
+      {{ ui.field("emailid", "Email", row.emailid, type="email", help="Used to sign in.") }}
+      <div class="field">
+        <label for="password">{{ "New password" if operation == "Edit" else "Password" }}{% if operation == "Create" %}<span class="req" aria-hidden="true">*</span>{% endif %}</label>
+        <input class="input" type="password" id="password" name="password" autocomplete="new-password"{{ ' required' if operation == 'Create' }}/>
+        <p class="help">{{ "Leave blank to keep the current password." if operation == "Edit" else "Stored as a salted hash." }}</p>
+      </div>
+      {{ ui.field("contactNo", "Contact number", row.contactNo, type="tel", required=False) }}
+      {{ ui.select("roleID", "Role", role_list, "roleID", "roleName", row.roleID if operation == "Edit" else None) }}
+      <div class="field">
+        <span class="label">Access</span>
+        <label class="check"><input type="checkbox" name="isActive"{{ ' checked' if row.isActive or operation == 'Create' }}/><span><span class="check-title">Active</span><span class="check-desc" style="display:block">Inactive users cannot sign in.</span></span></label>
+      </div>
     </div>
-</div>
-                                            
-                            <div class="form-group row">
-                                <label for="roleID" class="col-sm-3 col-form-label">Roleid </label>
-                                <div class="col-sm-9">
-                                    <select class="form-control" id="roleID" name="roleID" {{'disabled' if operation == 'Delete'}}>
-                                        {% for dd_row in role_list %}
-                                            <option value="{{dd_row.roleID}}">{{dd_row.roleName}}</option>
-
-                                        {% endfor %}
-                                    </select>                          
-                                </div>
-                            </div>
-                            
-    
-		
-        <div class="text-center">
-                <button type="submit" class="btn btn-outline-primary btn-sm ">{{operation}}</button>
-                <a href="/UsersListing" class="btn btn-outline-primary btn-sm ">Cancel</a>
-        </div>
-
-    </form>
-    
+  </div>
+  {% endif %}
+  {{ ui.form_footer(operation, "/UsersListing", "user") }}
+</form>
 {% endblock %}
-    

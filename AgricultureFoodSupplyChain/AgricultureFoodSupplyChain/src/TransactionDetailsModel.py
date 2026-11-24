@@ -43,6 +43,27 @@ class TransactionDetailsModel:
         return records
 
     @staticmethod
+    def get_listing(limit=None):
+        """Transactions with participant and product names, newest first, as dicts."""
+        conn = pyodbc.connect(connString, autocommit=True)
+        cursor = conn.cursor()
+        top = "TOP (%d) " % int(limit) if limit else ""
+        cursor.execute(
+            "SELECT " + top + "td.orderID, td.effDate, td.gstNbr, td.price, td.qty, td.isBlockChainGenerated, td.sequenceNumber, "
+            "td.ethTxHash, ab.agricultureBoardName, f.farmerName, b.buyerName, p.productName "
+            "FROM TransactionDetails td "
+            "LEFT JOIN AgricultureBoard ab ON ab.agricultureBoardID = td.agricultureBoardID "
+            "LEFT JOIN Farmer f ON f.farmerID = td.farmerID "
+            "LEFT JOIN Buyer b ON b.buyerID = td.buyerID "
+            "LEFT JOIN Product p ON p.productID = td.productID "
+            "ORDER BY td.sequenceNumber DESC")
+        names = [col[0] for col in cursor.description]
+        records = [dict(zip(names, row)) for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        return records
+
+    @staticmethod
     def get_name_id():
         conn = pyodbc.connect(connString, autocommit=True)
         cursor = conn.cursor()
