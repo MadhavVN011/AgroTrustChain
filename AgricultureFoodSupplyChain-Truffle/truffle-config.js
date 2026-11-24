@@ -34,10 +34,13 @@ module.exports = {
    * $ truffle test --network <network-name>
    */
 
+  // Docker writes artifacts to a shared volume instead of build/contracts.
+  ...(process.env.CONTRACTS_BUILD_DIR ? { contracts_build_directory: process.env.CONTRACTS_BUILD_DIR } : {}),
+
   networks: {
     development: {
-      host: "127.0.0.1",     // Localhost (default: none)
-      port: 7545,            // Standard Ethereum port (default: none)
+      host: process.env.GANACHE_HOST || "127.0.0.1",     // Localhost (default: none)
+      port: Number(process.env.GANACHE_PORT || 7545),     // Standard Ethereum port (default: none)
       network_id: "*",       // Any network (default: none)
     }
     // Useful for testing. The `development` name is special - truffle uses it by default

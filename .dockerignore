@@ -1,0 +1,12 @@
+.git
+.idea
+**/.idea
+**/__pycache__
+**/*.pyc
+.env
+.env.*
+**/*.bak
+**/*.pdf
+AgricultureFoodSupplyChain-Truffle/build
+AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/static/UPLOADED_FILES/*
+AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/static/charts/*
