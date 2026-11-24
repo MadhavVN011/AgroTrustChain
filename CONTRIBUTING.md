@@ -9,8 +9,9 @@ of what the system does, see the [README](README.md).
 2. [Running Without Docker (Windows)](#running-without-docker-windows)
 3. [Repository Layout](#repository-layout)
 4. [Conventions](#conventions)
-5. [Known Gaps](#known-gaps)
-6. [Submitting Changes](#submitting-changes)
+5. [Tests](#tests)
+6. [Known Gaps](#known-gaps)
+7. [Submitting Changes](#submitting-changes)
 
 ## Development with Docker
 
@@ -97,8 +98,20 @@ truffle migrate --reset
 ```
 
 The app reads the new `TransactionDetailsContract` address from `build/contracts/` automatically.
+`--reset` matters if you deployed before chain anchoring was added: the old contract has no
+`anchorChain`, and *Generate Blocks* will say so until it is redeployed.
 
-### 5. Run the app
+### 5. Hash the stored passwords
+
+The seed database stores passwords in plain text. Hash them once:
+
+```bash
+python AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/upgrade_passwords.py
+```
+
+If you skip this, each password is hashed the first time its user logs in.
+
+### 6. Run the app
 
 ```bash
 python AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/AgricultureFoodSupplyChainV1Server.py
@@ -124,7 +137,10 @@ AgroTrustChain/
 │   └── AgricultureFoodSupplyChain/
 │       └── src/
 │           ├── AgricultureFoodSupplyChainV1Server.py  # Flask app — all routes, login, RBAC
-│           ├── HashChain.py                       # Seals and verifies the hash chain
+│           ├── HashChain.py                       # Seals, anchors and verifies the hash chain
+│           ├── Blockchain.py                      # Web3 calls to TransactionDetailsContract
+│           ├── Passwords.py                       # Salted password hashing
+│           ├── upgrade_passwords.py               # Hashes legacy plain-text passwords
 │           ├── Constants.py                       # Configuration (env vars, Windows defaults)
 │           ├── AgricultureBoardModel.py           # DAO: AgricultureBoard table
 │           ├── BuyerModel.py                      # DAO: Buyer table
@@ -132,7 +148,7 @@ AgroTrustChain/
 │           ├── ProductModel.py                    # DAO: Product table
 │           ├── RoleModel.py                       # DAO: Role table (permission flags)
 │           ├── UsersModel.py                      # DAO: Users table
-│           ├── TransactionDetailsModel.py         # DAO + Web3 on-chain write
+│           ├── TransactionDetailsModel.py         # DAO; records on Ethereum before inserting
 │           ├── templates/                         # 22 Jinja2 templates
 │           │   ├── Home.html                      # Base layout (sidebar + topbar)
 │           │   ├── Login.html, Dashboard.html, Information.html
@@ -180,6 +196,9 @@ AgroTrustChain/
 - **Database changes go in `migrate.sql`.** It runs on every Docker start and by hand after a
   manual restore, so every statement must be idempotent: guard with `IF NOT EXISTS` / `IF EXISTS`.
   Do not edit the `.bak`. It is the seed that everyone restores from.
+- **Forms need a CSRF token.** Every `<form method="post">` must include
+  `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>`; POSTs without it get a 400.
+- **Passwords go through `Passwords.py`.** Never store or compare them directly.
 - **Use parameterised SQL** (`cursor.execute(sql, params)` with `?` placeholders) everywhere. Never
   build SQL by concatenating request values.
 - **The hash format is a contract with existing data.** `HashChain.HASH_FIELDS` and
@@ -198,20 +217,35 @@ AgroTrustChain/
   changes.
 - **Secrets.** Never commit `.env`, private keys or mnemonics (`.gitignore` covers the usual names).
 
+## Tests
+
+```bash
+docker compose run --rm tests                      # Python: hash chain, passwords, login, CSRF, permissions
+docker compose run --rm contracts truffle test     # Solidity: TransactionDetailsContract, against Ganache
+```
+
+- **Python** (`AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/tests/`, pytest). These need
+  no database or chain: the hash-chain logic lives in pure functions (`plan_seal`, `check_blocks`),
+  and the web tests run the real Flask app against a fake `pyodbc` connection (see `conftest.py`).
+  Outside Docker: `pip install pytest`, then `python -m pytest AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/tests`
+  (pyodbc still needs the system ODBC library to import).
+- **Solidity** (`AgricultureFoodSupplyChain-Truffle/test/`). Outside Docker: start Ganache, then
+  `truffle test` in `AgricultureFoodSupplyChain-Truffle`.
+
+Add a test with every change to `HashChain.py`, the login flow or the contract.
+
 ## Known Gaps
 
 Contributions are welcome in these areas. For security-related gaps, see [SECURITY.md](SECURITY.md).
 
-- **No automated tests.** `AgricultureFoodSupplyChain-Truffle/test/` is empty and there are no
-  Python tests. `HashChain` (sealing and verification) and the contracts are the most valuable
-  places to start.
+- **No end-to-end tests.** The suites above cover the logic and the contract, but nothing drives
+  the full Docker stack (database, chain and app together) automatically. Such checks are done by
+  hand today.
 - **Contract duplication.** The seven entity contracts are identical apart from their names; a
   single parameterised contract would serve.
-- **Duplicate migration number.** `3_buyer_migration.js` and `3_deploy_tokens.js` share the prefix
-  `3`. Truffle runs both, but renumbering would make the order explicit.
-- **Database before chain.** `TransactionDetailsModel.insert()` commits the SQL row before sending
-  the Ethereum transaction. If Ganache is unreachable, the row stays without an on-chain record,
-  and the Ethereum transaction hash is not stored anywhere.
+- **Sealing holds table locks while anchoring.** *Generate Blocks* keeps the `TransactionDetails`
+  locks until the Ethereum anchor is confirmed. That takes milliseconds on Ganache, but would block
+  other users for the block time on a real network.
 - **Manual setup is Windows-first.** The default connection string uses the `{SQL Server}` driver
   with Integrated Security. On other systems use Docker, or set the `DB_*` environment variables.
 - **Truffle is sunset upstream.** It still works (the Docker image pins 5.11.5), but a move to
@@ -220,6 +254,7 @@ Contributions are welcome in these areas. For security-related gaps, see [SECURI
 ## Submitting Changes
 
 1. Create a branch from `main`.
-2. Make your change and check it in the Docker stack: log in, exercise the pages you touched, and
-   for anything near the chain, run *Generate Blocks* and open the *Blockchain Report*.
-3. Open a pull request that explains what changed and how you checked it.
+2. Make your change, add or update tests, and run both suites (see [Tests](#tests)).
+3. Check it in the Docker stack: log in, exercise the pages you touched, and for anything near the
+   chain, run *Generate Blocks* and open the *Blockchain Report*.
+4. Open a pull request that explains what changed and how you checked it.

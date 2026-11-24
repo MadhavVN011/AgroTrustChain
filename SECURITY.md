@@ -12,17 +12,17 @@ through their GitHub profiles. Include steps to reproduce and the affected file 
 
 ## Known Limitations
 
-These are known and not yet fixed. Keep them in mind before deploying the app anywhere shared.
+These remain by design or are not yet addressed. Keep them in mind before deploying the app
+anywhere shared.
 
 | Area | Limitation | Mitigation today |
 | --- | --- | --- |
-| Passwords | Stored and compared in plain text in the `Users` table. | None. They should be salted and hashed with bcrypt or Argon2. |
-| CSRF | Forms carry no CSRF token. | Session cookies are `SameSite=Lax` and `HttpOnly`, so browsers do not send them on cross-site POSTs. |
 | Default credentials | The seed database has the login `1@1.com` / `1`. Docker defaults the SQL Server `sa` password to a value published in this repository. | Ports are bound to localhost. Change both before sharing a deployment: set `MSSQL_SA_PASSWORD` in `.env` before the first start. |
 | Session key | Without `FLASK_SECRET_KEY`, a random key is generated at each start. | Set `FLASK_SECRET_KEY` for any long-running deployment. |
 | Database privileges | The app connects as `sa` under Docker. | Use a least-privilege SQL login for anything beyond local use. |
-| Hash chain | Someone with write access to the database can rewrite a record *and every later hash*, which yields a chain that verifies. | Edits, deletions and re-ordering are detected unless every later hash is recomputed. Anchoring the latest hash on-chain would close this (see Future Work in the README). |
-| Ethereum account | Transactions are sent from Ganache's unlocked `accounts[0]`. | Acceptable only on a private development chain. A real network needs proper key management. |
+| Ethereum account | Transactions and chain anchors are sent from Ganache's unlocked `accounts[0]`, which owns the contract. | Acceptable only on a private development chain. A real network needs proper key management. |
+| Hash chain | Someone who controls both the database *and* the contract owner's Ethereum account can rewrite the chain and re-anchor it. | Edits, deletions, re-ordering and full rewrites are all detected unless the owner account is also compromised. Every anchor emits a `ChainAnchored` event, but the app does not audit that history yet. |
+| Login hardening | No rate limiting or account lockout on failed logins, and HTTPS is not configured. | Passwords are salted hashes, and ports are bound to localhost. Put a TLS reverse proxy in front for anything shared. |
 | Personal data | Farmer and buyer records hold contact details and Aadhaar numbers in clear text. | Don't load real personal data into a demo deployment. |
 
 ## Resolved
@@ -31,13 +31,22 @@ Issues present in earlier versions, now fixed:
 
 - **SQL injection** in login, password change and block generation. All queries are now
   parameterised.
+- **Plain-text passwords.** Passwords are stored as salted hashes (Werkzeug `scrypt`). Existing
+  plain-text passwords are hashed at startup (`upgrade_passwords.py`) or on the user's next login,
+  and the Users form no longer displays the stored password.
+- **CSRF.** Every form carries a per-session token, and POSTs without a valid token are rejected.
+  Session cookies are also `HttpOnly` and `SameSite=Lax`.
 - **Shared login state.** The logged-in user and role were Python globals, so one login unlocked
   the app for every visitor until restart, and *Logout* did not log out. Logins are now per-browser
   Flask sessions, and the user and role are reloaded on each request.
 - **Unauthenticated blockchain pages.** *Generate Blocks* and *Blockchain Report* now require a
   login with the `canTransactionDetails` permission.
 - **Weak hash chain.** Block hashes covered only four fields and not the previous hash, and the
-  report never re-checked them. Hashes now cover every field and `prevHash`, and the report
-  verifies the whole chain.
+  report never re-checked them. Hashes now cover every field and `prevHash`, the report verifies
+  the whole chain, and the chain's tip is anchored on Ethereum, so a fully re-hashed rewrite is
+  also detected.
 - **Edits silently unsealed transactions.** Editing a transaction reset its seal and set its
   `sequenceNumber` to 0. Edits now leave the seal intact, so they show as tampering.
+- **Database rows without an on-chain record.** A transaction was saved to the database before
+  being sent to Ethereum, so an Ethereum failure left an unrecorded row. The chain is now written
+  first, and the row stores the Ethereum transaction hash.

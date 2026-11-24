@@ -63,11 +63,14 @@ immutable, independently verifiable, and auditable end-to-end — "farm to fork"
 - **Records transactions** linking a board, a farmer, a buyer, a product, quantity, price, GST
   number, and effective date.
 - **Anchors each transaction on-chain** by invoking a Solidity contract on a private Ethereum
-  network through Web3.py at the moment the transaction is created.
+  network through Web3.py at the moment the transaction is created, and stores the resulting
+  Ethereum transaction hash with the record.
 - **Generates a hash chain** over pending transactions, computing a SHA-256 digest of each
   record's full contents together with the previous record's hash.
-- **Produces an audit report** that recomputes every hash and checks every link, flagging any
-  sealed transaction that was edited, deleted or re-ordered.
+- **Anchors the chain's tip on Ethereum** each time blocks are sealed.
+- **Produces an audit report** that recomputes every hash, checks every link and compares the tip
+  with the Ethereum anchor, flagging any sealed transaction that was edited, deleted, re-ordered
+  or rewritten.
 - **Enforces role-based access** so each module (boards, buyers, farmers, products, roles,
   transactions, users) is gated by per-role permission flags, with a separate login per browser.
 
@@ -83,7 +86,7 @@ immutable, independently verifiable, and auditable end-to-end — "farm to fork"
 ┌───────────────────────────────▼──────────────────────────────────────┐
 │                        Application Layer                             │
 │   Flask — AgricultureFoodSupplyChainV1Server.py                      │
-│   • Session/role state  • RBAC gate (process_role)                   │
+│   • Sessions + CSRF     • RBAC gate (@login_required)                │
 │   • CRUD orchestration  • Hash-chain generation & reporting          │
 └──────────────┬───────────────────────────────┬───────────────────────┘
                │                               │
@@ -162,7 +165,8 @@ has already been sealed into the chain.
 ## Smart Contracts
 
 All seven entity contracts share the same interface — a lightweight on-chain recorder that stores
-the last transaction written for that entity:
+the last transaction written for that entity. `TransactionDetailsContract` also anchors the hash
+chain (see [The Hash Chain](#the-hash-chain-block-generation)):
 
 ```solidity
 contract TransactionDetailsContract {
@@ -181,23 +185,32 @@ contract TransactionDetailsContract {
         int _price,
         int _qty
     ) public { /* assigns each field */ }
+
+    // TransactionDetailsContract only: tip of the application's hash chain.
+    address public owner = msg.sender;
+    bytes32 public chainHead;
+    uint public chainLength;
+    event ChainAnchored(uint chainLength, bytes32 chainHead);
+
+    function anchorChain(bytes32 _chainHead, uint _chainLength) public;  // owner only
 }
 ```
 
-`TransactionDetailsModel.insert()` is the live integration point. After the row is committed to SQL
-Server it connects to Ganache, loads `TransactionDetailsContract.json` from Truffle's build folder,
-looks up the contract address for the network Ganache reports, sends `perform_transactions(...)`
-from `accounts[0]`, and waits for the receipt:
+`TransactionDetailsModel.insert()` is the live integration point. All Ethereum calls live in
+[Blockchain.py](AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/Blockchain.py). It loads
+`TransactionDetailsContract.json` from Truffle's build folder, looks up the contract address for
+the network Ganache reports, and sends transactions from `accounts[0]`:
 
 ```python
-w3 = Web3(HTTPProvider(Constants.eth_rpc_url))
-contract = _load_transaction_contract(w3)   # ABI + address from the Truffle artifact
-tx_hash = contract.functions.perform_transactions(
-    str(obj.agricultureBoardID), str(obj.buyerID), str(obj.farmerID),
-    str(obj.productID), int(float(obj.price)), int(float(obj.qty))
-).transact({'from': w3.eth.accounts[0]})
-receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+# TransactionDetailsModel.insert()
+obj.ethTxHash = Blockchain.record_transaction(
+    obj.agricultureBoardID, obj.buyerID, obj.farmerID, obj.productID, price, qty)
+# ...then INSERT the row, including ethTxHash
 ```
+
+The chain is written **first**. If Ethereum is unreachable, nothing is stored and the user sees an
+error, so every database row has an on-chain record. The row keeps the Ethereum transaction hash
+(`ethTxHash`), which the Blockchain Report shows.
 
 Because the address comes from the artifact that `truffle migrate` writes, it no longer has to be
 copied into `Constants.py` after each deployment. Setting the `CONTRACT_ADDRESS` environment
@@ -206,7 +219,7 @@ variable still overrides it.
 **Token contracts.** `AgroCoin` (AGC, 1,000,000 supply) and `TrustCoin` (TRC, 500,000 supply) are
 minimal balance/transfer contracts deployed alongside the entity contracts. They are the on-chain
 substrate for the incentive and reputation economy described in the paper (rewarding honest
-reporting, staking against quality claims). They compile and deploy via migration `3_deploy_tokens.js`
+reporting, staking against quality claims). They compile and deploy via migration `9_deploy_tokens.js`
 but are **not yet called from the Flask application**.
 
 ### Deployed addresses (Ganache network 5777, from the checked-in build artifacts)
@@ -219,7 +232,7 @@ but are **not yet called from the Flask application**.
 | FarmerContract | `0x65E7B300126C62a35af1e282a1Be2268E5cB9e98` |
 | ProductContract | `0xF01D28806b1633b0003518d97574ee0FB44917C9` |
 | RoleContract | `0x1A5e4CeDeF3b5eC15516A65B63E32d9C0B0B38De` |
-| TransactionDetailsContract | `0x8Ca603d35d7a384b52887dd05BEAbb906d5331D5` |
+| TransactionDetailsContract | none: the contract gained chain anchoring, so redeploy it with `truffle migrate --reset` |
 | UsersContract | `0xaF29C54F86d2046892488ac81e2aC33FeA68161E` |
 | AgroCoin | `0x5778b973EB121F02E035415d4e0b58a232c2E59A` |
 | TrustCoin | `0x92F40dFF7c6693DC47391Cd23EF914912601E732` |
@@ -249,22 +262,31 @@ This is the "blockchain report" the auditor reads.
    - Serialise deterministically: `json.dumps(payload, sort_keys=True, separators=(",", ":"))`.
    - `hash = sha256(serialized)`; store `hash`, `prevHash`, `isBlockChainGenerated = 1`.
    - Carry `hash` forward as the next record's `prevHash`.
+3. Anchor the new tip on Ethereum: `anchorChain(lastHash, numberOfSealedBlocks)`. If that fails,
+   the database transaction is rolled back and nothing is sealed.
 
-**`/BlockChainReport`** walks the chain from the first block, recomputes each hash and checks each
-link, and marks every block *Verified*, *Tampered* or *Pending*:
+Before sealing, the existing chain is compared with the anchor. If they disagree, sealing is
+refused: anchoring a new tip on top would hide the evidence.
 
-| What happened to a sealed record | How the report shows it |
+**`/BlockChainReport`** walks the chain from the first block, recomputes each hash, checks each
+link, and compares the tip with the anchor read from Ethereum. It marks every block *Verified*,
+*Tampered* or *Pending*:
+
+| What happened to the sealed records | How the report shows it |
 | --- | --- |
-| Any field edited (in the app or directly in SQL) | That block: "Data was changed after this block was sealed" |
-| Record deleted | The next block: "Link broken" |
-| Record re-sealed with a fresh hash | The next block: "Link broken" |
+| A field edited (in the app or directly in SQL) | That block: "Data was changed after this block was sealed" |
+| A record deleted, or re-sealed with a fresh hash | The next block: "Link broken" |
+| A record changed *and every later hash recomputed* | Banner: the database chain does not match the Ethereum anchor |
+| The newest records deleted | Banner: the database chain does not match the Ethereum anchor |
+| Ethereum unreachable | Amber banner: hashes and links verified, anchor not confirmed |
 
 Editing a sealed transaction in the app is allowed, but the form warns that the edit will show as
 tampering.
 
-**What it cannot catch:** someone with write access to the database who changes a record *and
-recomputes every later hash* produces a chain that verifies. Catching that needs the latest hash
-anchored somewhere they cannot write, such as the Ethereum contract (see Future Work).
+**What it still cannot catch:** someone who controls both the database *and* the app's Ethereum
+account (the contract owner) can rewrite the chain and re-anchor it. On a public or consortium
+network the anchoring history stays visible in the `ChainAnchored` events, but this app does not
+audit them.
 
 ### Re-sealing an old chain
 
@@ -275,9 +297,10 @@ the current data, unseal everything and generate blocks again:
 UPDATE TransactionDetails SET isBlockChainGenerated = 0, hash = '', prevHash = '';
 ```
 
-Then run `migrate.sql` again (it renumbers duplicate `sequenceNumber`s and adds the unique index)
-and use *Generate Blocks*. The database shipped in this repository has no sealed records, so a
-fresh setup does not need this.
+Then run `migrate.sql` again (it renumbers duplicate `sequenceNumber`s and adds the unique index),
+redeploy the contracts so the anchor starts empty (`truffle migrate --reset`; under Docker, delete
+the `ganache-data` and `contracts-build` volumes), and use *Generate Blocks*. The database shipped
+in this repository has no sealed records, so a fresh setup does not need this.
 
 ## Role-Based Access Control
 
@@ -360,6 +383,11 @@ Everyday commands:
 | `docker compose down` | Stop. Database and chain are kept in Docker volumes |
 | `docker compose down -v` | Stop and **delete** the database and chain, to start over from the `.bak` |
 | `docker compose up --build app` | Rebuild after changing Python code or templates |
+| `docker compose run --rm tests` | Run the Python tests (no database or chain needed) |
+| `docker compose run --rm contracts truffle test` | Run the Solidity contract tests against Ganache |
+
+On every start the app also hashes any plain-text passwords left in the database
+(`upgrade_passwords.py`), so the seeded password is stored hashed from the first run.
 
 **Configuration.** Defaults work without any setup. To change them, copy `.env.example` to `.env`:
 
@@ -378,17 +406,19 @@ connect to `localhost,1433` as `sa`. To connect MetaMask or `truffle console`, u
 
 ## Typical Workflow
 
-1. **Log in** — credentials are validated against `Users`, and the associated `Role` determines
-   which sidebar modules are usable.
+1. **Log in** — the password is checked against the salted hash in `Users`, and the associated
+   `Role` determines which sidebar modules are usable.
 2. **Register master data** — add Agriculture Boards, Farmers, Buyers, and Products.
 3. **Record a transaction** — from *Transactions → Create*, select board, farmer, buyer, and
-   product; enter GST number, effective date, price, and quantity. On save the row is inserted into
-   SQL Server **and** `perform_transactions(...)` is executed on the Ethereum contract; the block
-   receipt is awaited before the request returns.
+   product; enter GST number, effective date, price, and quantity. On save,
+   `perform_transactions(...)` is executed on the Ethereum contract and its receipt awaited; only
+   then is the row inserted into SQL Server, together with the Ethereum transaction hash.
 4. **Generate blocks** — visit *Generate Blocks* to see how many transactions are unsealed, then
-   submit to compute SHA-256 hashes and link each record to its predecessor.
-5. **Audit** — open *Blockchain Report*. It recomputes every hash and checks every link, and flags
-   each sealed transaction that was changed, deleted or re-ordered.
+   submit to compute SHA-256 hashes, link each record to its predecessor and anchor the new tip
+   on Ethereum.
+5. **Audit** — open *Blockchain Report*. It recomputes every hash, checks every link and compares
+   the tip with the Ethereum anchor, flagging any sealed transaction that was changed, deleted,
+   re-ordered or rewritten.
 
 ## Research Context: WTH-Raft and the AgroTrustChain Framework
 
@@ -456,6 +486,8 @@ To be precise about what the code in this repository does today versus what the 
 | Solidity contracts + Truffle migrations | ✅ Implemented — 10 contracts deployed |
 | Web3.py middleware | ✅ Implemented — on-chain write on transaction insert |
 | SHA-256 hash chain + audit report | ✅ Implemented — full-record hashes, verified on every report view |
+| Hash chain anchored on Ethereum | ✅ Implemented — tip anchored on every seal, compared on every report view |
+| Automated tests | ✅ Implemented — Python (pytest) and Solidity (Truffle) suites |
 | Docker setup | ✅ Implemented — one command brings up the whole stack |
 | AgroCoin / TrustCoin token contracts | ⚠️ Deployed but not yet wired into the application |
 | Q-Score / R-Score on-chain scoring | 🔬 Described in the paper; not yet in the contracts |
@@ -483,9 +515,7 @@ listed in [SECURITY.md](SECURITY.md) and other known gaps in
 - Integrate computer-vision quality assessment to remove human error from the reputation engine.
 - Move bulk data (images, environmental logs) to IPFS and store only content hashes on-chain,
   avoiding the "storage explosion" problem.
-- Anchor the latest chain hash in the Ethereum contract on every *Generate Blocks*, so even a full
-  rewrite of the database chain is detectable.
-- Harden authentication: hashed passwords and CSRF tokens (see [SECURITY.md](SECURITY.md)).
+- Audit the full history of `ChainAnchored` events, so a re-anchored chain is also detectable.
 - Deploy to a public or consortium testnet so consumers can verify provenance independently.
 - Add a consumer-facing traceability lookup (scan a code, see the full farm-to-fork history).
 
