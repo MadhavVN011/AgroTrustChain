@@ -102,3 +102,8 @@ AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/static/UPLOADED_FILES/
 !AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/static/UPLOADED_FILES/.gitkeep
 AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/static/charts/*
 !AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/static/charts/.gitkeep
+
+# Vercel CLI link (local only)
+.vercel/
+.vercel
+.env*
