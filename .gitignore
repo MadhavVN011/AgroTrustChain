@@ -103,7 +103,5 @@ AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/static/UPLOADED_FILES/
 AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/static/charts/*
 !AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/static/charts/.gitkeep
 
-# Vercel CLI link (local only)
+# Vercel CLI link (local only). .env.local from `vercel link` is covered by .env.* above.
 .vercel/
-.vercel
-.env*
