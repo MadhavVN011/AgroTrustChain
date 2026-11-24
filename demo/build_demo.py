@@ -158,8 +158,10 @@ def report(tamper):
 # Rendering
 # ---------------------------------------------------------------------------
 
+DEMO_USER = {"name": "Demo Admin", "email": "admin@example.org", "role": "Administrator", "initials": "DA"}
+
 BANNER = """
-<div id="demo-banner" style="position:sticky;top:0;z-index:1000;background:#fff3cd;color:#664d03;border-bottom:1px solid #ffe69c;
+<div id="demo-banner" style="position:relative;z-index:50;background:#fffaeb;color:#93370d;border-bottom:1px solid #fedf89;
      padding:.6rem 1rem;font:14px/1.4 system-ui,sans-serif;text-align:center">
   <b>Read-only demo with sample data.</b> Nothing is saved, and there is no database or Ethereum node behind this page.
   The Blockchain Report is computed with the app's real verification code:
@@ -206,6 +208,16 @@ def main():
     tampered_blocks, tampered_summary = report(tamper=True)
     sealed = sum(1 for b in intact_blocks if b["isBlockChainGenerated"])
     batches, reputation_rows = quality_data()
+    listing = sorted(intact_blocks, key=lambda b: -b["sequenceNumber"])
+    dashboard = {
+        "counts": {"transactions": len(intact_blocks), "sealed": sealed, "farmers": len(FARMERS), "buyers": len(BUYERS),
+                   "products": len(PRODUCTS), "boards": len(BOARDS), "batches": len(batches),
+                   "pending_batches": sum(1 for b in batches if b["status"] == "Pending")},
+        "recent": listing[:6],
+        "chain": intact_summary,
+        "chain_error": None,
+        "suspended": [r["farmerName"] for r in reputation_rows if r["suspended"]],
+    }
     params = dict(reputation.PARAMS)
     charts = [("latency.png", "Consensus latency by network size"), ("throughput.png", "Throughput by network size"),
               ("byzantine.png", "Consensus success when attackers lie every round"),
@@ -218,7 +230,7 @@ def main():
 
     pages = {
         "index": ("Login.html", {}),
-        "Dashboard": ("Dashboard.html", {}),
+        "Dashboard": ("Dashboard.html", dashboard),
         "ChangePassword": ("ChangePassword.html", {"msg": ""}),
         "AgricultureBoardListing": ("AgricultureBoardListing.html", {"records": BOARDS}),
         "AgricultureBoardOperation": ("AgricultureBoardOperation.html", create),
@@ -230,9 +242,9 @@ def main():
         "ProductOperation": ("ProductOperation.html", create),
         "RoleListing": ("RoleListing.html", {"records": ROLES}),
         "RoleOperation": ("RoleOperation.html", create),
-        "UsersListing": ("UsersListing.html", {"records": USERS}),
+        "UsersListing": ("UsersListing.html", {"records": USERS, "role_names": {str(r["roleID"]): r["roleName"] for r in ROLES}}),
         "UsersOperation": ("UsersOperation.html", dict(create, role_list=ROLES)),
-        "TransactionDetailsListing": ("TransactionDetailsListing.html", {"records": transactions}),
+        "TransactionDetailsListing": ("TransactionDetailsListing.html", {"records": listing}),
         "TransactionDetailsOperation": ("TransactionDetailsOperation.html", dict(
             create, agricultureBoard_list=BOARDS, buyer_list=BUYERS, farmer_list=FARMERS, product_list=PRODUCTS)),
         "BlockChainGeneration": ("BlockChainGeneration.html",
@@ -247,7 +259,8 @@ def main():
         "Simulation": ("Simulation.html", {"charts": charts, "repo": REPO_URL}),
     }
     for name, (template, context) in pages.items():
-        html = inject(env.get_template(template).render(**context))
+        shell = {"current_path": "/" + name, "current_user": DEMO_USER, "nav_role": ROLES[0]}
+        html = inject(env.get_template(template).render(**shell, **context))
         with open(os.path.join(OUT, name + ".html"), "w", encoding="utf-8") as file:
             file.write(html)
 
