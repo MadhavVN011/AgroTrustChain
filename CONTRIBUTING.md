@@ -252,15 +252,21 @@ Add a test with every change to `HashChain.py`, the login flow or the contract.
 | Contract tests | `truffle test` against Ganache |
 | Full-stack smoke test | Starts the whole Docker stack and runs `docker/smoke-test.sh` |
 | Build Vercel demo | `python demo/build_demo.py` |
-| Deploy demo to Vercel | After all of the above pass: a **preview** for pull requests, **production** for `main` |
+| Deploy preview | Pull requests only, after all of the above pass: an automatic Vercel **preview** |
+| Deploy production | `main` only, after all of the above pass: waits for **manual approval**, then deploys to <https://agrotrustchain.vercel.app> |
+
+**Approving a production deploy.** Production runs in the GitHub `production` environment
+(*Settings → Environments*). It may only deploy from `main` and needs approval from a required
+reviewer. After a merge, open the run under *Actions* and choose **Review deployments → Approve and
+deploy**. Rejecting it, or leaving it for 30 days, leaves production unchanged.
 
 **The demo** ([demo/build_demo.py](demo/build_demo.py)) is a static, read-only site. Vercel can't
 host SQL Server or Ganache, so the app's templates are rendered with fictional sample data. The
 Blockchain Report pages are computed with `HashChain`'s real functions, and forms are disabled. To
 build it locally: `pip install jinja2 && python demo/build_demo.py`, then open `demo/dist/`.
 
-**Deployment secrets.** The deploy job needs three repository secrets. Without them it is skipped
-and the other jobs still run.
+**Deployment secrets.** The deploy jobs need three repository secrets. Without them they skip
+the deploy and the other jobs still run.
 
 | Secret | Value |
 | --- | --- |
