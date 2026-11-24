@@ -26,7 +26,9 @@ REPO_URL = "https://github.com/MadhavVN011/AgroTrustChain"
 sys.modules.setdefault("pyodbc", types.ModuleType("pyodbc"))
 sys.modules.setdefault("Blockchain", types.ModuleType("Blockchain"))
 sys.path.insert(0, SRC)
+sys.path.insert(0, os.path.join(ROOT, "simulation"))
 import HashChain  # noqa: E402
+from wthraft import reputation  # noqa: E402  (the contract's scoring rules, mirrored in Python)
 
 from jinja2 import Environment, FileSystemLoader  # noqa: E402
 
@@ -108,6 +110,41 @@ def sealed_chain():
     return rows, {"head": head, "length": length}
 
 
+def quality_data():
+    """Batches and on-chain scores, computed with the contract's rules (simulation/wthraft/reputation.py)."""
+    histories = {  # farmer index -> [(claimed, inspected), ...]
+        0: [(85, 82), (88, 90), (90, 86)],
+        1: [(80, 78), (95, 58), (92, 55)],
+    }
+    batches, scores = [], {}
+    n = 0
+    for f, history in histories.items():
+        supplier = reputation.Supplier()
+        for claimed, inspected in history:
+            n += 1
+            consistent = abs(claimed - inspected) <= reputation.PARAMS["tolerance"]
+            reputation.record_inspection(supplier, consistent, inspected)
+            status = "Validated" if consistent and inspected >= reputation.PARAMS["minQuality"] else "Revoked"
+            batches.append({
+                "batchID": "BATCH-%04d" % n, "farmerID": FARMERS[f]["farmerID"], "farmerName": FARMERS[f]["farmerName"],
+                "productName": PRODUCTS[n % len(PRODUCTS)]["productName"], "certificateNumber": "FSSAI-%05d" % (1000 + n),
+                "certificateExpiry": datetime.date(2027, 12, 31), "claimedQuality": claimed, "inspectedQuality": inspected,
+                "status": status, "valid": status == "Validated",
+            })
+        scores[FARMERS[f]["farmerID"]] = {"registered": True, "suspended": supplier.suspended, "q": supplier.q,
+                                          "r": supplier.r, "weight": reputation.weight(supplier),
+                                          "batches": len(history), "penalties": supplier.penalties}
+    batches.append({  # one awaiting inspection
+        "batchID": "BATCH-%04d" % (n + 1), "farmerID": FARMERS[0]["farmerID"], "farmerName": FARMERS[0]["farmerName"],
+        "productName": PRODUCTS[0]["productName"], "certificateNumber": "FSSAI-%05d" % (1001 + n),
+        "certificateExpiry": datetime.date(2027, 12, 31), "claimedQuality": 87, "inspectedQuality": None,
+        "status": "Pending", "valid": False,
+    })
+    rows = [{"farmerID": f["farmerID"], "farmerName": f["farmerName"], **scores[f["farmerID"]]} for f in FARMERS]
+    rows.sort(key=lambda r: -r["weight"])
+    return list(reversed(batches)), rows
+
+
 def report(tamper):
     blocks, anchor = sealed_chain()
     if tamper:
@@ -126,7 +163,8 @@ BANNER = """
      padding:.6rem 1rem;font:14px/1.4 system-ui,sans-serif;text-align:center">
   <b>Read-only demo with sample data.</b> Nothing is saved, and there is no database or Ethereum node behind this page.
   The Blockchain Report is computed with the app's real verification code:
-  <a href="/BlockChainReport">intact chain</a> &middot; <a href="/BlockChainReportTampered">tampered example</a>.
+  <a href="/BlockChainReport">intact chain</a> &middot; <a href="/BlockChainReportTampered">tampered example</a>
+  &middot; <a href="/Reputation">reputation</a> &middot; <a href="/Simulation">WTH-Raft simulation</a>.
   To run the full app, see <a href="REPO_URL#setup-with-docker">Setup with Docker</a>.
 </div>
 """.replace("REPO_URL", REPO_URL)
@@ -150,7 +188,8 @@ def inject(html):
 
 
 def main():
-    env = Environment(loader=FileSystemLoader(os.path.join(SRC, "templates")), autoescape=True)
+    env = Environment(loader=FileSystemLoader([os.path.join(SRC, "templates"), os.path.join(ROOT, "demo", "templates")]),
+                      autoescape=True)
     env.globals["csrf_token"] = lambda: "demo"
 
     # Start clean, but keep .vercel/ (the local `vercel link` of this folder).
@@ -166,6 +205,15 @@ def main():
     intact_blocks, intact_summary = report(tamper=False)
     tampered_blocks, tampered_summary = report(tamper=True)
     sealed = sum(1 for b in intact_blocks if b["isBlockChainGenerated"])
+    batches, reputation_rows = quality_data()
+    params = dict(reputation.PARAMS)
+    charts = [("latency.png", "Consensus latency by network size"), ("throughput.png", "Throughput by network size"),
+              ("byzantine.png", "Consensus success when attackers lie every round"),
+              ("byzantine_sleeper.png", "Consensus success during a sleeper attack")]
+    results = os.path.join(ROOT, "simulation", "results")
+    os.makedirs(os.path.join(OUT, "simulation"), exist_ok=True)
+    for image, _ in charts:
+        shutil.copy(os.path.join(results, image), os.path.join(OUT, "simulation", image))
     create = {"operation": "Create", "row": {}}
 
     pages = {
@@ -191,6 +239,12 @@ def main():
                                  {"blocksCreated": sealed, "blocksNotCreated": len(intact_blocks) - sealed}),
         "BlockChainReport": ("BlockChainReport.html", {"blocks": intact_blocks, "summary": intact_summary}),
         "BlockChainReportTampered": ("BlockChainReport.html", {"blocks": tampered_blocks, "summary": tampered_summary}),
+        "BatchListing": ("BatchListing.html", {"records": batches, "chain_error": None}),
+        "BatchOperation": ("BatchOperation.html", {"farmer_list": FARMERS, "product_list": PRODUCTS,
+                                                   "today": datetime.date.today().isoformat()}),
+        "BatchInspection": ("BatchInspection.html", {"batch": batches[0]}),
+        "Reputation": ("Reputation.html", {"rows": reputation_rows, "params": params, "chain_error": None}),
+        "Simulation": ("Simulation.html", {"charts": charts, "repo": REPO_URL}),
     }
     for name, (template, context) in pages.items():
         html = inject(env.get_template(template).render(**context))
