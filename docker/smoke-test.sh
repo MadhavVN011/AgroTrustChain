@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # End-to-end check of a running Docker stack (`docker compose up -d --build`):
-# log in, create a transaction (recorded on Ethereum), seal it, and confirm the
-# Blockchain Report verifies the chain and its Ethereum anchor.
+# log in, create a transaction (recorded on Ethereum), seal it, confirm the
+# Blockchain Report verifies the chain and its Ethereum anchor, exercise the
+# batch compliance checks and automatic penalty, then tamper with a record.
 #
 #   bash docker/smoke-test.sh [base-url]
 set -euo pipefail
@@ -52,6 +53,21 @@ echo "Blockchain Report verifies the chain and its Ethereum anchor"
 REPORT="$(curl -fsS -b "$JAR" "$BASE/BlockChainReport")"
 grep -q 'Chain intact' <<<"$REPORT" || fail "chain not reported intact"
 grep -q 'matches the anchor on Ethereum' <<<"$REPORT" || fail "anchor not confirmed"
+
+echo "A batch with an expired certificate is rejected by the compliance checks"
+curl -fsS -b "$JAR" -c "$JAR" -o /dev/null -d csrf_token="$(token BatchOperation)" -d farmerID="$FA" -d productID="$PR" \
+    -d certificateNumber=SMOKE-OLD -d certificateExpiry=2020-01-01 -d claimedQuality=80 "$BASE/ProcessBatchOperation"
+curl -fsS -b "$JAR" -c "$JAR" "$BASE/Information" | grep -q 'Certificate has expired' || fail "expired certificate accepted"
+
+echo "An inconsistent quality claim is penalised automatically"
+curl -fsS -b "$JAR" -c "$JAR" -o /dev/null -d csrf_token="$(token BatchOperation)" -d farmerID="$FA" -d productID="$PR" \
+    -d certificateNumber=SMOKE-1 -d certificateExpiry=2030-12-31 -d claimedQuality=95 "$BASE/ProcessBatchOperation"
+BATCH="$(sql "SELECT batchID FROM Batch WHERE certificateNumber='SMOKE-1'")"
+[ -n "$BATCH" ] || fail "batch not registered"
+curl -fsS -b "$JAR" -c "$JAR" -o /dev/null -d csrf_token="$(token BatchListing)" -d batchID="$BATCH" -d inspectedQuality=50 \
+    "$BASE/ProcessBatchInspection"
+curl -fsS -b "$JAR" -c "$JAR" "$BASE/Information" | grep -q 'automatic penalty cut' || fail "no penalty applied"
+[ "$(sql "SELECT status FROM Batch WHERE batchID='$BATCH'")" = "Revoked" ] || fail "inconsistent batch not revoked"
 
 echo "Tampering with a sealed record is detected"
 sql "UPDATE TransactionDetails SET qty = qty + 1 WHERE gstNbr='GST-SMOKE'" >/dev/null

@@ -1,0 +1,53 @@
+{% extends "Home.html" %}
+
+{% block content %}
+<h2 class="heading">Product Batches</h2>
+<p>A batch is admitted on-chain only if its certificate is unrevoked and unexpired and its claimed quality meets the minimum.
+An inspection then validates it, or revokes it and penalises the farmer if the claim was inconsistent.</p>
+{% if chain_error %}<div class="alert alert-warning">Could not read batch validity from Ethereum: {{ chain_error }}</div>{% endif %}
+
+<div class="text-center m-2"><a href="/BatchOperation" class="btn btn-outline-primary btn-sm">Register Batch</a></div>
+<table class="table table-bordered table-striped">
+  <thead>
+    <tr>
+      <th scope="col">Batch</th>
+      <th scope="col">Farmer / Product</th>
+      <th scope="col">Certificate</th>
+      <th scope="col">Quality (claimed / inspected)</th>
+      <th scope="col">Status</th>
+      <th scope="col">Action</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% if records | length == 0 %}
+    <tr><td colspan="6"><div class="alert alert-info text-center">No batches registered yet</div></td></tr>
+  {% endif %}
+  {% for row in records %}
+    <tr>
+      <td>{{ row.batchID }}</td>
+      <td>{{ row.farmerName or row.farmerID }}<div class="small text-muted">{{ row.productName or '' }}</div></td>
+      <td>{{ row.certificateNumber }}<div class="small text-muted">expires {{ row.certificateExpiry }}</div></td>
+      <td>{{ row.claimedQuality }} / {{ row.inspectedQuality if row.inspectedQuality is not none else '—' }}</td>
+      <td>
+        {% if row.status == 'Validated' and row.valid %}<span class="badge bg-success">Validated</span>
+        {% elif row.status == 'Validated' and row.valid == false %}<span class="badge bg-warning text-dark">No longer valid</span>
+        {% elif row.status == 'Pending' %}<span class="badge bg-secondary">Awaiting inspection</span>
+        {% else %}<span class="badge bg-danger">{{ row.status }}</span>{% endif %}
+      </td>
+      <td>
+        {% if row.status == 'Pending' %}
+          <a href="/BatchInspection?unique_id={{ row.batchID }}" class="btn btn-outline-primary btn-sm">Inspect</a>
+        {% endif %}
+        {% if row.status != 'Certificate revoked' %}
+        <form method="post" action="/ProcessRevokeCertificate" class="d-inline inline-action" onsubmit="return confirm('Revoke certificate {{ row.certificateNumber }}? Every batch that uses it becomes invalid.');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <input type="hidden" name="batchID" value="{{ row.batchID }}"/>
+          <button type="submit" class="btn btn-outline-warning btn-sm">Revoke certificate</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
