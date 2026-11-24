@@ -10,8 +10,9 @@ of what the system does, see the [README](README.md).
 3. [Repository Layout](#repository-layout)
 4. [Conventions](#conventions)
 5. [Tests](#tests)
-6. [Known Gaps](#known-gaps)
-7. [Submitting Changes](#submitting-changes)
+6. [CI/CD and the Vercel Demo](#cicd-and-the-vercel-demo)
+7. [Known Gaps](#known-gaps)
+8. [Submitting Changes](#submitting-changes)
 
 ## Development with Docker
 
@@ -124,12 +125,15 @@ the `Users` table (the account must have `isActive = 1`).
 
 ```
 AgroTrustChain/
+├── .github/workflows/ci.yml                       # CI/CD: tests, smoke test, Vercel demo deploy
+├── demo/                                          # Read-only Vercel demo (build_demo.py, vercel.json)
 ├── docker-compose.yml                             # Full stack: db, ganache, contracts, app
 ├── .env.example                                   # Optional overrides for docker compose
 ├── docker/
 │   ├── app/Dockerfile                             # Python 3.11 + ODBC Driver 18 + gunicorn
 │   ├── contracts/Dockerfile, migrate.sh           # Truffle; deploys to ganache on start
-│   └── db/init.sh                                 # Restores the .bak, then runs migrate.sql
+│   ├── db/init.sh                                 # Restores the .bak, then runs migrate.sql
+│   └── smoke-test.sh                              # End-to-end check of a running stack
 │
 ├── AgricultureFoodSupplyChain/                    # Flask application
 │   ├── AgricultureFoodSupplyChainV1DB.bak         # SQL Server database backup (restore this)
@@ -232,7 +236,41 @@ docker compose run --rm contracts truffle test     # Solidity: TransactionDetail
 - **Solidity** (`AgricultureFoodSupplyChain-Truffle/test/`). Outside Docker: start Ganache, then
   `truffle test` in `AgricultureFoodSupplyChain-Truffle`.
 
+`bash docker/smoke-test.sh` checks a running stack end to end: it logs in, records a transaction
+on Ethereum, seals it, confirms the report and anchor, then tampers with the record and confirms
+that is detected.
+
 Add a test with every change to `HashChain.py`, the login flow or the contract.
+
+## CI/CD and the Vercel Demo
+
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`:
+
+| Job | What it does |
+| --- | --- |
+| Python tests | `docker compose run --rm tests` |
+| Contract tests | `truffle test` against Ganache |
+| Full-stack smoke test | Starts the whole Docker stack and runs `docker/smoke-test.sh` |
+| Build Vercel demo | `python demo/build_demo.py` |
+| Deploy demo to Vercel | After all of the above pass: a **preview** for pull requests, **production** for `main` |
+
+**The demo** ([demo/build_demo.py](demo/build_demo.py)) is a static, read-only site. Vercel can't
+host SQL Server or Ganache, so the app's templates are rendered with fictional sample data. The
+Blockchain Report pages are computed with `HashChain`'s real functions, and forms are disabled. To
+build it locally: `pip install jinja2 && python demo/build_demo.py`, then open `demo/dist/`.
+
+**Deployment secrets.** The deploy job needs three repository secrets. Without them it is skipped
+and the other jobs still run.
+
+| Secret | Value |
+| --- | --- |
+| `VERCEL_TOKEN` | A Vercel token, ideally scoped to the project: `vercel tokens create "AgroTrustChain CI" --project agrotrustchain` |
+| `VERCEL_ORG_ID` | `orgId` from `.vercel/project.json` after `vercel link` |
+| `VERCEL_PROJECT_ID` | `projectId` from the same file |
+
+The Vercel project is deliberately **not** connected to the Git repository. Vercel's own Git
+integration would deploy the repository root, which is the raw source and the `.bak` database,
+without waiting for the tests. Deploys go only through this workflow.
 
 ## Known Gaps
 

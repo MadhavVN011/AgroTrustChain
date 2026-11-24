@@ -1,5 +1,7 @@
 # AgroTrustChain — Blockchain-Based Agricultural Food Supply Chain Traceability
 
+[![CI/CD](https://github.com/MadhavVN011/AgroTrustChain/actions/workflows/ci.yml/badge.svg)](https://github.com/MadhavVN011/AgroTrustChain/actions/workflows/ci.yml)
+
 A blockchain-enabled traceability system for the agri-food supply chain, built as a Flask web
 application backed by SQL Server for operational records and a private Ethereum network (Ganache
 + Truffle + Solidity) for tamper-evident transaction anchoring.
@@ -11,6 +13,10 @@ SHA-256 hash ledger (`hash` / `prevHash`) that a web report re-verifies on every
 **Quick start:** with Docker installed, run `docker compose up --build`, open
 <http://localhost:5000> and log in as `1@1.com` / `1`. See [Setup with Docker](#setup-with-docker), or
 [CONTRIBUTING.md](CONTRIBUTING.md) to run it without Docker.
+
+**Live demo:** <https://agrotrustchain.vercel.app>. This is a read-only version with sample data: the
+real templates and the real hash-chain verification, but no database or Ethereum node behind it.
+It includes a [tampered example](https://agrotrustchain.vercel.app/BlockChainReportTampered).
 
 Created by **Madhav Nair**, **Ishaan Chaturvedi**, and **Kunal Saha**.
 
