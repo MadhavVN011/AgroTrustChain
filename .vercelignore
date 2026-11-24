@@ -1,0 +1,18 @@
+# Only what demo/build_demo.py needs is uploaded to Vercel: the app's templates
+# and static files, the simulation's scoring rules and result charts.
+# Everything else stays out, above all the database backup.
+*.bak
+*.pdf
+.env
+.env.*
+.idea
+**/.idea
+**/__pycache__
+.github
+docker
+docker-compose.yml
+AgricultureFoodSupplyChain-Truffle
+AgricultureFoodSupplyChain/migrate.sql
+AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/tests
+simulation/tests
+demo/dist

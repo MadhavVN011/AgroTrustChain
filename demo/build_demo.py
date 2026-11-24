@@ -268,7 +268,6 @@ def main():
     with open(os.path.join(OUT, "Logout.html"), "w", encoding="utf-8") as file:
         file.write('<!DOCTYPE html><meta http-equiv="refresh" content="0; url=/"><a href="/">Back to login</a>')
 
-    shutil.copy(os.path.join(ROOT, "demo", "vercel.json"), os.path.join(OUT, "vercel.json"))
 
     assert intact_summary["intact"] and not tampered_summary["intact"], "demo chain did not verify as expected"
     print("Built %d pages into %s (intact chain: %s, tampered example: %d block(s) flagged)"
