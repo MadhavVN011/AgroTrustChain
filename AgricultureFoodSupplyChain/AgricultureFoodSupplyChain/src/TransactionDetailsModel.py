@@ -3,11 +3,29 @@ import pyodbc
 import datetime
 import uuid
 import time
-import Constants    
-from Constants import contract_address
+import os
+import Constants
 from web3 import Web3, HTTPProvider
 import json
-import pprint
+
+
+def _load_transaction_contract(w3):
+    """Return the deployed TransactionDetailsContract for the network Ganache is on."""
+    artifact_path = os.path.join(Constants.contracts_build_dir, "TransactionDetailsContract.json")
+    with open(artifact_path) as file:
+        artifact = json.load(file)
+
+    address = Constants.contract_address
+    if not address:
+        network_id = str(w3.net.version)
+        address = artifact.get("networks", {}).get(network_id, {}).get("address")
+        if not address:
+            raise RuntimeError(
+                "TransactionDetailsContract is not deployed on Ethereum network " + network_id
+                + ". Run `truffle migrate` against this network, or set CONTRACT_ADDRESS."
+            )
+    to_checksum = getattr(Web3, "to_checksum_address", None) or Web3.toChecksumAddress
+    return w3.eth.contract(address=to_checksum(address), abi=artifact["abi"])
         
 class TransactionDetailsModel:
     def __init__(self, orderID = '',agricultureBoardID = '',gstNbr = '',buyerID = '',farmerID = '',effDate = None,productID = '',price = 0,qty = 0,isBlockChainGenerated = False,hash = '',prevHash = '',sequenceNumber = 0,agricultureBoardModel = None,buyerModel = None,farmerModel = None,productModel = None):
@@ -77,40 +95,33 @@ class TransactionDetailsModel:
         obj.orderID = str(uuid.uuid4())
         conn = pyodbc.connect(connString, autocommit=True)
         cursor = conn.cursor()
-        sqlcmd1 = "INSERT INTO TransactionDetails (orderID,agricultureBoardID,gstNbr,buyerID,farmerID,effDate,productID,price,qty,isBlockChainGenerated,hash,prevHash,sequenceNumber) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"
-        cursor.execute(sqlcmd1, (obj.orderID,obj.agricultureBoardID,obj.gstNbr,obj.buyerID,obj.farmerID,datetime.datetime.strptime(obj.effDate.replace('T', ' '), '%Y-%m-%d'),obj.productID,obj.price,obj.qty,obj.isBlockChainGenerated,obj.hash,obj.prevHash,obj.sequenceNumber))
+        # New transactions start unsealed and take the next sequenceNumber. The
+        # UPDLOCK/HOLDLOCK hint makes MAX()+1 safe against concurrent inserts.
+        sqlcmd1 = ("INSERT INTO TransactionDetails (orderID,agricultureBoardID,gstNbr,buyerID,farmerID,effDate,productID,price,qty,isBlockChainGenerated,hash,prevHash,sequenceNumber) "
+                   "SELECT ?,?,?,?,?,?,?,?,?,0,'','',ISNULL(MAX(sequenceNumber), 0) + 1 FROM TransactionDetails WITH (UPDLOCK, HOLDLOCK)")
+        cursor.execute(sqlcmd1, (obj.orderID,obj.agricultureBoardID,obj.gstNbr,obj.buyerID,obj.farmerID,datetime.datetime.strptime(obj.effDate.replace('T', ' '), '%Y-%m-%d'),obj.productID,obj.price,obj.qty))
         cursor.close()
         conn.close()
-        
 
-        w3 = Web3(HTTPProvider('http://localhost:7545'))
-        
-        
-        compiled_contract_path = '../../../AgricultureFoodSupplyChain-Truffle/build/contracts/TransactionDetailsContract.json'
-        deployed_contract_address = contract_address
-        
-        with open(compiled_contract_path) as file:
-            contract_json = json.load(file)
-            contract_abi = contract_json["abi"]
-        
-        contract = w3.eth.contract(address=deployed_contract_address, abi=contract_abi)
-        
+        w3 = Web3(HTTPProvider(Constants.eth_rpc_url))
+        contract = _load_transaction_contract(w3)
         accounts = w3.eth.accounts
-    
-        
-        tx_hash = contract.functions.perform_transactions(str(obj.agricultureBoardID), str(obj.buyerID), str(obj.farmerID), str(obj.productID), int(obj.price), int(obj.qty)).transact({'from': accounts[0]})
-        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)        
-        
-    
+
+        tx_hash = contract.functions.perform_transactions(str(obj.agricultureBoardID), str(obj.buyerID), str(obj.farmerID), str(obj.productID), int(float(obj.price)), int(float(obj.qty))).transact({'from': accounts[0]})
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+
     @staticmethod
     def update(obj):
+        # Only business fields are updated. The seal columns (isBlockChainGenerated,
+        # hash, prevHash, sequenceNumber) are owned by HashChain: editing a sealed
+        # transaction keeps its stored hash, so the Blockchain Report flags the edit.
         conn = pyodbc.connect(connString, autocommit=True)
         cursor = conn.cursor()
-        sqlcmd1 = "UPDATE TransactionDetails SET agricultureBoardID = ?,gstNbr = ?,buyerID = ?,farmerID = ?,effDate = ?,productID = ?,price = ?,qty = ?,isBlockChainGenerated = ?,hash = ?,prevHash = ?,sequenceNumber = ? WHERE orderID = ?"
-        cursor.execute(sqlcmd1,  (obj.agricultureBoardID,obj.gstNbr,obj.buyerID,obj.farmerID,datetime.datetime.strptime(obj.effDate.replace('T', ' '), '%Y-%m-%d'),obj.productID,obj.price,obj.qty,obj.isBlockChainGenerated,obj.hash,obj.prevHash,obj.sequenceNumber,obj.orderID))
+        sqlcmd1 = "UPDATE TransactionDetails SET agricultureBoardID = ?,gstNbr = ?,buyerID = ?,farmerID = ?,effDate = ?,productID = ?,price = ?,qty = ? WHERE orderID = ?"
+        cursor.execute(sqlcmd1,  (obj.agricultureBoardID,obj.gstNbr,obj.buyerID,obj.farmerID,datetime.datetime.strptime(obj.effDate.replace('T', ' '), '%Y-%m-%d'),obj.productID,obj.price,obj.qty,obj.orderID))
         cursor.close()
         conn.close()
-    
+
     @staticmethod
     def delete(unique_id):
         conn = pyodbc.connect(connString, autocommit=True)

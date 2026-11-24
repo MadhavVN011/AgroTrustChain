@@ -1,8 +1,12 @@
-
-    {% extends "Home.html" %}
+{% extends "Home.html" %}
 
 {% block content %}
+    {% if blocksSealed %}
     <h2>Blocks Created Successfully</h2>
-    
+    <p>{{ blocksSealed }} transaction(s) were sealed into the chain.</p>
+    {% else %}
+    <h2>No Pending Transactions</h2>
+    <p>Every transaction is already sealed.</p>
+    {% endif %}
+    <a href="/BlockChainReport" class="btn btn-outline-primary btn-sm">View Blockchain Report</a>
 {% endblock %}
-            

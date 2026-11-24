@@ -1,48 +1,78 @@
-
-    
 {% extends "Home.html" %}
 
 {% block content %}
-<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
-    <script type="text/javascript">
-      google.charts.load('current', {packages:["orgchart"]});
-      google.charts.setOnLoadCallback(drawChart);
+<style>
+    .chain-hash { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .8rem; word-break: break-all; }
+    .chain-table td { vertical-align: top; }
+    .chain-table .col-block { width: 6rem; }
+    .chain-table .col-status { width: 16rem; }
+    .chain-table tr.block-tampered td { background: #fdecea; }
+    .chain-table tr.block-pending td { color: #6c757d; }
+</style>
 
-      function drawChart() {
-        var data = new google.visualization.DataTable();
-        data.addColumn('string', '');
-        data.addColumn('string', '');
-        data.addColumn('string', '');
+<h2 class="heading">Blockchain Report</h2>
 
-  
-        data.addRows([
-            {% 
-                for row in records %}
-                    {% if loop.index == 1 %}
-                        {% if loop.index < records | length %}
-                            [{v:'Block '+{{ loop.index }}, f:' <div>Agriculture Board ID: {{ row.agricultureBoardName }}</div><div>Buyer ID: {{ row.buyerID }}</div><div>Farmer ID: {{ row.buyerName }}</div><div>Product ID: {{ row.productID }}</div><div>Price: {{ row.price }}</div><div>Qty: {{ row.qty }}</div> <div>Hash: {{ row.hash }}</div><div>Prev Hash: {{ row.prevHash }}</div>'},'', ''],
-                        {% else %}
-                            [{v:'Block '+{{ loop.index }}, f:' <div>Agriculture Board ID: {{ row.agricultureBoardName }}</div><div>Buyer ID: {{ row.buyerID }}</div><div>Farmer ID: {{ row.buyerName }}</div><div>Product ID: {{ row.productID }}</div><div>Price: {{ row.price }}</div><div>Qty: {{ row.qty }}</div> <div>Hash: {{ row.hash }}</div><div>Prev Hash: {{ row.prevHash }}</div>'},'', '']
-                        {% endif %}
-                    {% else %}
-                        {% if loop.index < records | length %}
-                            [{v:'Block '+{{ loop.index }}, f:' <div>Agriculture Board ID: {{ row.agricultureBoardName }}</div><div>Buyer ID: {{ row.buyerID }}</div><div>Farmer ID: {{ row.buyerName }}</div><div>Product ID: {{ row.productID }}</div><div>Price: {{ row.price }}</div><div>Qty: {{ row.qty }}</div> <div>Hash: {{ row.hash }}</div><div>Prev Hash: {{ row.prevHash }}</div>'},'Block '+{{ loop.index-1 }} , ''],
-                        {% else %}
-                            [{v:'Block '+{{ loop.index }}, f:' <div>Agriculture Board ID: {{ row.agricultureBoardName }}</div><div>Buyer ID: {{ row.buyerID }}</div><div>Farmer ID: {{ row.buyerName }}</div><div>Product ID: {{ row.productID }}</div><div>Price: {{ row.price }}</div><div>Qty: {{ row.qty }}</div> <div>Hash: {{ row.hash }}</div><div>Prev Hash: {{ row.prevHash }}</div>'},'Block '+{{ loop.index-1 }}, '']
-                        {% endif %}
-                    {% endif %}
-                {% endfor %}
-        ]);
+<p>Every sealed transaction's SHA-256 hash covers all of its fields, its sequence number and the previous block's hash.
+This report recomputes each hash and checks each link, so a sealed record that was edited, deleted or re-ordered is flagged.</p>
 
-        // Create the chart.
-        var chart = new google.visualization.OrgChart(document.getElementById('blkchain'));
-        // Draw the chart, setting the allowHtml option to true for the tooltips.
-        chart.draw(data, {allowHtml:true});
-      }
-  </script>
-    <h2>Blockchain Report</h2>
-    <div id="blkchain" style="color:black">
-    </div>
+{% if summary.valid + summary.tampered == 0 %}
+    <div class="alert alert-info">No blocks have been sealed yet. Use <a href="/BlockChainGeneration">Generate Blocks</a> to seal pending transactions.</div>
+{% elif summary.intact %}
+    <div class="alert alert-success"><b>Chain intact.</b> All {{ summary.valid }} sealed block(s) verified.
+        {% if summary.pending %}{{ summary.pending }} transaction(s) are waiting to be sealed.{% endif %}</div>
+{% else %}
+    <div class="alert alert-danger"><b>Tampering detected.</b> {{ summary.tampered }} of {{ summary.valid + summary.tampered }} sealed block(s) failed verification. The highlighted rows below show where.</div>
+{% endif %}
+
+<table class="table table-bordered chain-table">
+    <thead>
+        <tr>
+            <th scope="col" class="col-block">Block</th>
+            <th scope="col" class="col-status">Status</th>
+            <th scope="col">Transaction</th>
+            <th scope="col">Hash / Previous hash</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% if blocks | length == 0 %}
+        <tr><td colspan="4"><div class="alert alert-info text-center">No Transactions Found</div></td></tr>
+    {% endif %}
+    {% for block in blocks %}
+        <tr class="block-{{ block.status }}">
+            <td>
+                {% if block.blockNumber %}#{{ block.blockNumber }}{% else %}&mdash;{% endif %}
+                <div class="text-muted small">seq {{ block.sequenceNumber }}</div>
+            </td>
+            <td>
+                {% if block.status == 'valid' %}
+                    <span class="badge bg-success">Verified</span>
+                {% elif block.status == 'tampered' %}
+                    <span class="badge bg-danger">Tampered</span>
+                    <ul class="small mb-0 ps-3">
+                    {% for problem in block.problems %}<li>{{ problem }}</li>{% endfor %}
+                    </ul>
+                {% else %}
+                    <span class="badge bg-secondary">Pending</span>
+                {% endif %}
+            </td>
+            <td class="small">
+                <div><b>Order:</b> {{ block.orderID }}</div>
+                <div><b>Date:</b> {{ block.effDate }} &nbsp; <b>GST:</b> {{ block.gstNbr }}</div>
+                <div><b>Agriculture Board:</b> {{ block.agricultureBoardName or block.agricultureBoardID or '—' }}</div>
+                <div><b>Farmer:</b> {{ block.farmerName or block.farmerID or '—' }}</div>
+                <div><b>Buyer:</b> {{ block.buyerName or block.buyerID or '—' }}</div>
+                <div><b>Product:</b> {{ block.productName or block.productID or '—' }} &nbsp; <b>Price:</b> {{ block.price }} &nbsp; <b>Qty:</b> {{ block.qty }}</div>
+            </td>
+            <td>
+                {% if block.status == 'pending' %}
+                    <span class="text-muted small">Not sealed yet</span>
+                {% else %}
+                    <div class="chain-hash"><b>hash</b> {{ block.hash }}</div>
+                    <div class="chain-hash text-muted"><b>prev</b> {{ block.prevHash or '(genesis)' }}</div>
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
 {% endblock %}
-    
-            
