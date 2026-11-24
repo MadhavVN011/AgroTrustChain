@@ -12,16 +12,25 @@
 
 <h2 class="heading">Blockchain Report</h2>
 
-<p>Every sealed transaction's SHA-256 hash covers all of its fields, its sequence number and the previous block's hash.
-This report recomputes each hash and checks each link, so a sealed record that was edited, deleted or re-ordered is flagged.</p>
+<p>Every sealed transaction's SHA-256 hash covers all of its fields, its sequence number and the previous block's hash,
+and the tip of the chain is anchored on Ethereum each time blocks are generated. This report recomputes each hash, checks
+each link and compares the tip with the Ethereum anchor, so a sealed record that was edited, deleted, re-ordered or
+rewritten is flagged.</p>
 
-{% if summary.valid + summary.tampered == 0 %}
+{% if summary.valid + summary.tampered == 0 and summary.anchor != 'mismatch' %}
     <div class="alert alert-info">No blocks have been sealed yet. Use <a href="/BlockChainGeneration">Generate Blocks</a> to seal pending transactions.</div>
-{% elif summary.intact %}
-    <div class="alert alert-success"><b>Chain intact.</b> All {{ summary.valid }} sealed block(s) verified.
+{% elif summary.intact and summary.anchor == 'match' %}
+    <div class="alert alert-success"><b>Chain intact.</b> All {{ summary.valid }} sealed block(s) verified, and the chain tip matches the anchor on Ethereum
+        (contract <span class="chain-hash">{{ summary.anchorAddress }}</span>).
         {% if summary.pending %}{{ summary.pending }} transaction(s) are waiting to be sealed.{% endif %}</div>
+{% elif summary.intact %}
+    <div class="alert alert-warning"><b>Hashes and links verified, but the Ethereum anchor could not be confirmed.</b>
+        {{ summary.anchorMessage }}</div>
 {% else %}
-    <div class="alert alert-danger"><b>Tampering detected.</b> {{ summary.tampered }} of {{ summary.valid + summary.tampered }} sealed block(s) failed verification. The highlighted rows below show where.</div>
+    <div class="alert alert-danger"><b>Tampering detected.</b>
+        {% if summary.tampered %}{{ summary.tampered }} of {{ summary.valid + summary.tampered }} sealed block(s) failed verification. The highlighted rows below show where.{% endif %}
+        {% if summary.anchor == 'mismatch' %}<div class="mt-2">{{ summary.anchorMessage }}</div>{% endif %}
+        {% if summary.anchor in ('missing', 'unavailable') %}<div class="mt-2">{{ summary.anchorMessage }}</div>{% endif %}</div>
 {% endif %}
 
 <table class="table table-bordered chain-table">
@@ -70,6 +79,7 @@ This report recomputes each hash and checks each link, so a sealed record that w
                     <div class="chain-hash"><b>hash</b> {{ block.hash }}</div>
                     <div class="chain-hash text-muted"><b>prev</b> {{ block.prevHash or '(genesis)' }}</div>
                 {% endif %}
+                {% if block.ethTxHash %}<div class="chain-hash text-muted mt-1"><b>eth tx</b> {{ block.ethTxHash }}</div>{% endif %}
             </td>
         </tr>
     {% endfor %}

@@ -3,30 +3,9 @@ import pyodbc
 import datetime
 import uuid
 import time
-import os
-import Constants
-from web3 import Web3, HTTPProvider
-import json
+import Blockchain
 
 
-def _load_transaction_contract(w3):
-    """Return the deployed TransactionDetailsContract for the network Ganache is on."""
-    artifact_path = os.path.join(Constants.contracts_build_dir, "TransactionDetailsContract.json")
-    with open(artifact_path) as file:
-        artifact = json.load(file)
-
-    address = Constants.contract_address
-    if not address:
-        network_id = str(w3.net.version)
-        address = artifact.get("networks", {}).get(network_id, {}).get("address")
-        if not address:
-            raise RuntimeError(
-                "TransactionDetailsContract is not deployed on Ethereum network " + network_id
-                + ". Run `truffle migrate` against this network, or set CONTRACT_ADDRESS."
-            )
-    to_checksum = getattr(Web3, "to_checksum_address", None) or Web3.toChecksumAddress
-    return w3.eth.contract(address=to_checksum(address), abi=artifact["abi"])
-        
 class TransactionDetailsModel:
     def __init__(self, orderID = '',agricultureBoardID = '',gstNbr = '',buyerID = '',farmerID = '',effDate = None,productID = '',price = 0,qty = 0,isBlockChainGenerated = False,hash = '',prevHash = '',sequenceNumber = 0,agricultureBoardModel = None,buyerModel = None,farmerModel = None,productModel = None):
         self.orderID = orderID
@@ -92,23 +71,28 @@ class TransactionDetailsModel:
     
     @staticmethod
     def insert(obj):
+        """Record the transaction on Ethereum first, then store it with its Ethereum tx hash.
+
+        Writing to the chain first means a database row always has an on-chain
+        record: if Ethereum is unreachable, nothing is stored and
+        Blockchain.BlockchainError is raised.
+        """
         obj.orderID = str(uuid.uuid4())
+        effDate = datetime.datetime.strptime(obj.effDate.replace('T', ' '), '%Y-%m-%d')
+        price = float(obj.price)
+        qty = float(obj.qty)
+
+        obj.ethTxHash = Blockchain.record_transaction(obj.agricultureBoardID, obj.buyerID, obj.farmerID, obj.productID, price, qty)
+
         conn = pyodbc.connect(connString, autocommit=True)
         cursor = conn.cursor()
         # New transactions start unsealed and take the next sequenceNumber. The
         # UPDLOCK/HOLDLOCK hint makes MAX()+1 safe against concurrent inserts.
-        sqlcmd1 = ("INSERT INTO TransactionDetails (orderID,agricultureBoardID,gstNbr,buyerID,farmerID,effDate,productID,price,qty,isBlockChainGenerated,hash,prevHash,sequenceNumber) "
-                   "SELECT ?,?,?,?,?,?,?,?,?,0,'','',ISNULL(MAX(sequenceNumber), 0) + 1 FROM TransactionDetails WITH (UPDLOCK, HOLDLOCK)")
-        cursor.execute(sqlcmd1, (obj.orderID,obj.agricultureBoardID,obj.gstNbr,obj.buyerID,obj.farmerID,datetime.datetime.strptime(obj.effDate.replace('T', ' '), '%Y-%m-%d'),obj.productID,obj.price,obj.qty))
+        sqlcmd1 = ("INSERT INTO TransactionDetails (orderID,agricultureBoardID,gstNbr,buyerID,farmerID,effDate,productID,price,qty,isBlockChainGenerated,hash,prevHash,sequenceNumber,ethTxHash) "
+                   "SELECT ?,?,?,?,?,?,?,?,?,0,'','',ISNULL(MAX(sequenceNumber), 0) + 1,? FROM TransactionDetails WITH (UPDLOCK, HOLDLOCK)")
+        cursor.execute(sqlcmd1, (obj.orderID,obj.agricultureBoardID,obj.gstNbr,obj.buyerID,obj.farmerID,effDate,obj.productID,price,qty,obj.ethTxHash))
         cursor.close()
         conn.close()
-
-        w3 = Web3(HTTPProvider(Constants.eth_rpc_url))
-        contract = _load_transaction_contract(w3)
-        accounts = w3.eth.accounts
-
-        tx_hash = contract.functions.perform_transactions(str(obj.agricultureBoardID), str(obj.buyerID), str(obj.farmerID), str(obj.productID), int(float(obj.price)), int(float(obj.qty))).transact({'from': accounts[0]})
-        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
 
     @staticmethod
     def update(obj):

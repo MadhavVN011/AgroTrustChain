@@ -4,6 +4,7 @@
 {% block content %}
     <h2 class="heading">{{operation}}  Transaction Details</h2>
     <form id="frm" name="frm" method="post" action="/ProcessTransactionDetailsOperation" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                
       
          <input type="hidden" name="operation" value="{{ operation }}"/>

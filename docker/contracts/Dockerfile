@@ -7,6 +7,7 @@ RUN npm install -g truffle@5.11.5 --no-audit --no-fund \
 WORKDIR /truffle
 COPY AgricultureFoodSupplyChain-Truffle/contracts ./contracts
 COPY AgricultureFoodSupplyChain-Truffle/migrations ./migrations
+COPY AgricultureFoodSupplyChain-Truffle/test ./test
 COPY AgricultureFoodSupplyChain-Truffle/truffle-config.js ./truffle-config.js
 COPY docker/contracts/migrate.sh /usr/local/bin/migrate.sh
 

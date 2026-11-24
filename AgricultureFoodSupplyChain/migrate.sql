@@ -40,3 +40,18 @@ BEGIN
         PRINT 'Created unique index UX_TransactionDetails_sequenceNumber.';
     END;
 END;
+
+-- 3. Store the Ethereum transaction hash recorded for each transaction.
+IF COL_LENGTH('dbo.TransactionDetails', 'ethTxHash') IS NULL
+BEGIN
+    ALTER TABLE dbo.TransactionDetails ADD ethTxHash nvarchar(66) NULL;
+    PRINT 'Added column TransactionDetails.ethTxHash.';
+END;
+
+-- 4. Make room for salted password hashes (about 160 characters). The app
+--    hashes any remaining plain-text passwords (upgrade_passwords.py).
+IF COL_LENGTH('dbo.Users', 'password') < 510   -- nvarchar length is in bytes
+BEGIN
+    ALTER TABLE dbo.Users ALTER COLUMN password nvarchar(255) NULL;
+    PRINT 'Widened Users.password to nvarchar(255).';
+END;

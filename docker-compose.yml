@@ -8,7 +8,9 @@
 #   ganache    private Ethereum chain (network id 5777, deterministic accounts)
 #   contracts  one-shot: `truffle migrate` against ganache
 #   app        the Flask web app
+#   tests      Python tests, only when asked: docker compose run --rm tests
 #
+# Contract tests: docker compose run --rm contracts truffle test
 # Every setting below can be overridden in a .env file (see .env.example).
 # `docker compose down -v` deletes the database and chain to start over.
 
@@ -84,6 +86,7 @@ services:
     build:
       context: .
       dockerfile: docker/app/Dockerfile
+      target: app
     depends_on:
       db-init:
         condition: service_completed_successfully
@@ -102,6 +105,14 @@ services:
       - "127.0.0.1:${APP_PORT:-5000}:5000"
     volumes:
       - contracts-build:/contracts-build:ro
+
+  # Python tests (no database or chain needed): docker compose run --rm tests
+  tests:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+      target: test
 
 volumes:
   mssql-data:

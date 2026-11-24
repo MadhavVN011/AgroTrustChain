@@ -4,6 +4,7 @@
 {% block content %}
     <h2 class="heading">{{operation}}  Users</h2>
     <form id="frm" name="frm" method="post" action="/ProcessUsersOperation" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                
       
          <input type="hidden" name="operation" value="{{ operation }}"/>
@@ -28,7 +29,8 @@
                                             <div class="form-group row">
                                     <label for="password" class="col-sm-3 col-form-label">Password </label>
                                     <div class="col-sm-9">
-                                        <input type="text" class="form-control" name="password" id="password"  value="{{ row.password }}" required {{'readonly' if operation == 'Delete'}} />
+                                        <input type="password" class="form-control" name="password" id="password" autocomplete="new-password" {{'required' if operation == 'Create'}} {{'readonly' if operation == 'Delete'}} />
+                                        {% if operation == 'Edit' %}<small class="text-muted">Leave blank to keep the current password.</small>{% endif %}
                                     </div>
                                 </div>
                                             

@@ -1,7 +1,9 @@
 from functools import wraps
+import hmac
 import os
+import secrets
 
-from flask import Flask, request, render_template, redirect, url_for, session, g
+from flask import Flask, request, render_template, redirect, url_for, session, g, abort
 import pyodbc
 
 from Constants import connString
@@ -13,7 +15,9 @@ from ProductModel import ProductModel
 from RoleModel import RoleModel
 from TransactionDetailsModel import TransactionDetailsModel
 from UsersModel import UsersModel
+import Blockchain
 import HashChain
+import Passwords
 
 
 app = Flask(__name__)
@@ -21,6 +25,33 @@ app = Flask(__name__)
 # random key is generated, so everyone is logged out when the server restarts.
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(32)
 app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
+
+
+# ---------------------------------------------------------------------------
+# CSRF protection
+#
+# Every form carries a per-session token ({{ csrf_token() }} in the templates),
+# and every POST must send it back. Runs before any other request handler.
+# ---------------------------------------------------------------------------
+
+def csrf_token():
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_urlsafe(32)
+    return session["csrf_token"]
+
+
+app.jinja_env.globals["csrf_token"] = csrf_token
+
+
+@app.before_request
+def check_csrf_token():
+    if request.method != "POST":
+        return
+    sent = request.form.get("csrf_token", "")
+    expected = session.get("csrf_token", "")
+    if not sent or not expected or not hmac.compare_digest(sent, expected):
+        abort(400, description="This form has expired or did not come from this site. "
+                               "Go back, reload the page and try again.")
 
 
 # ---------------------------------------------------------------------------
@@ -90,16 +121,17 @@ def processLogin():
     conn1 = pyodbc.connect(connString, autocommit=True)
     try:
         cur1 = conn1.cursor()
-        cur1.execute("SELECT userID, roleID FROM Users WHERE emailid = ? AND password = ? AND isActive = 1",
-                     (emailid, password))
-        row = cur1.fetchone()
-        if not row:
-            return render_template("Login.html", processResult="Invalid Credentials")
-        cur1.execute("SELECT roleID FROM Role WHERE roleID = ?", row[1])
-        if not cur1.fetchone():
-            return render_template("Login.html", processResult="Invalid Role")
+        cur1.execute("SELECT u.userID, u.password, r.roleID FROM Users u LEFT JOIN Role r ON r.roleID = u.roleID "
+                     "WHERE u.emailid = ? AND u.isActive = 1", emailid)
+        row = next((r for r in cur1.fetchall() if Passwords.verify(r[1], password)), None)
     finally:
         conn1.close()
+    if not row:
+        return render_template("Login.html", processResult="Invalid Credentials")
+    if row[2] is None:
+        return render_template("Login.html", processResult="Invalid Role")
+    if not Passwords.is_hashed(row[1]):
+        UsersModel.set_password(row[0], password)  # upgrade a legacy plain-text password
 
     session.clear()
     session["user_id"] = row[0]
@@ -127,16 +159,19 @@ def processChangePassword():
     conn1 = pyodbc.connect(connString, autocommit=True)
     try:
         cur1 = conn1.cursor()
-        cur1.execute("SELECT userID FROM Users WHERE userID = ? AND password = ?", (g.user_id, oldPassword))
-        if not cur1.fetchone():
-            return render_template("ChangePassword.html", msg="Invalid Old Password")
-
-        if newPassword.strip() != confirmPassword.strip():
-            return render_template("ChangePassword.html", msg="New Password and Confirm Password are NOT same")
-
-        cur1.execute("UPDATE Users SET password = ? WHERE userID = ?", (newPassword, g.user_id))
+        cur1.execute("SELECT password FROM Users WHERE userID = ?", g.user_id)
+        row = cur1.fetchone()
     finally:
         conn1.close()
+    if not row or not Passwords.verify(row[0], oldPassword):
+        return render_template("ChangePassword.html", msg="Invalid Old Password")
+
+    if newPassword.strip() != confirmPassword.strip():
+        return render_template("ChangePassword.html", msg="New Password and Confirm Password are NOT same")
+    if not newPassword.strip():
+        return render_template("ChangePassword.html", msg="New Password cannot be empty")
+
+    UsersModel.set_password(g.user_id, newPassword)
     return render_template("ChangePassword.html", msg="Password Changed Successfully")
 
 
@@ -445,7 +480,10 @@ def process_TransactionDetails_operation():
         obj.qty = request.form['qty']
 
     if operation == "Create":
-        obj.insert(obj)
+        try:
+            obj.insert(obj)
+        except Blockchain.BlockchainError as error:
+            return show_info("The transaction was not saved because it could not be recorded on Ethereum. " + str(error), "Error")
     if operation == "Edit":
         obj.update(obj)
     if operation == "Delete":
@@ -517,7 +555,10 @@ def BlockChainGeneration():
 @app.route("/ProcessBlockchainGeneration", methods=['POST'])
 @login_required("canTransactionDetails", "Blockchain")
 def ProcessBlockchainGeneration():
-    blocksSealed = HashChain.seal_pending_blocks()
+    try:
+        blocksSealed = HashChain.seal_pending_blocks()
+    except (Blockchain.BlockchainError, HashChain.ChainIntegrityError) as error:
+        return show_info("No blocks were sealed. " + str(error), "Error")
     return render_template('BlockchainGenerationResult.html', blocksSealed=blocksSealed)
 
 
