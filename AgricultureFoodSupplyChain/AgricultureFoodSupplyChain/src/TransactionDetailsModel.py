@@ -3,12 +3,9 @@ import pyodbc
 import datetime
 import uuid
 import time
-import Constants    
-from Constants import contract_address
-from web3 import Web3, HTTPProvider
-import json
-import pprint
-        
+import Blockchain
+
+
 class TransactionDetailsModel:
     def __init__(self, orderID = '',agricultureBoardID = '',gstNbr = '',buyerID = '',farmerID = '',effDate = None,productID = '',price = 0,qty = 0,isBlockChainGenerated = False,hash = '',prevHash = '',sequenceNumber = 0,agricultureBoardModel = None,buyerModel = None,farmerModel = None,productModel = None):
         self.orderID = orderID
@@ -74,43 +71,41 @@ class TransactionDetailsModel:
     
     @staticmethod
     def insert(obj):
+        """Record the transaction on Ethereum first, then store it with its Ethereum tx hash.
+
+        Writing to the chain first means a database row always has an on-chain
+        record: if Ethereum is unreachable, nothing is stored and
+        Blockchain.BlockchainError is raised.
+        """
         obj.orderID = str(uuid.uuid4())
+        effDate = datetime.datetime.strptime(obj.effDate.replace('T', ' '), '%Y-%m-%d')
+        price = float(obj.price)
+        qty = float(obj.qty)
+
+        obj.ethTxHash = Blockchain.record_transaction(obj.agricultureBoardID, obj.buyerID, obj.farmerID, obj.productID, price, qty)
+
         conn = pyodbc.connect(connString, autocommit=True)
         cursor = conn.cursor()
-        sqlcmd1 = "INSERT INTO TransactionDetails (orderID,agricultureBoardID,gstNbr,buyerID,farmerID,effDate,productID,price,qty,isBlockChainGenerated,hash,prevHash,sequenceNumber) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"
-        cursor.execute(sqlcmd1, (obj.orderID,obj.agricultureBoardID,obj.gstNbr,obj.buyerID,obj.farmerID,datetime.datetime.strptime(obj.effDate.replace('T', ' '), '%Y-%m-%d'),obj.productID,obj.price,obj.qty,obj.isBlockChainGenerated,obj.hash,obj.prevHash,obj.sequenceNumber))
+        # New transactions start unsealed and take the next sequenceNumber. The
+        # UPDLOCK/HOLDLOCK hint makes MAX()+1 safe against concurrent inserts.
+        sqlcmd1 = ("INSERT INTO TransactionDetails (orderID,agricultureBoardID,gstNbr,buyerID,farmerID,effDate,productID,price,qty,isBlockChainGenerated,hash,prevHash,sequenceNumber,ethTxHash) "
+                   "SELECT ?,?,?,?,?,?,?,?,?,0,'','',ISNULL(MAX(sequenceNumber), 0) + 1,? FROM TransactionDetails WITH (UPDLOCK, HOLDLOCK)")
+        cursor.execute(sqlcmd1, (obj.orderID,obj.agricultureBoardID,obj.gstNbr,obj.buyerID,obj.farmerID,effDate,obj.productID,price,qty,obj.ethTxHash))
         cursor.close()
         conn.close()
-        
 
-        w3 = Web3(HTTPProvider('http://localhost:7545'))
-        
-        
-        compiled_contract_path = '../../../AgricultureFoodSupplyChain-Truffle/build/contracts/TransactionDetailsContract.json'
-        deployed_contract_address = contract_address
-        
-        with open(compiled_contract_path) as file:
-            contract_json = json.load(file)
-            contract_abi = contract_json["abi"]
-        
-        contract = w3.eth.contract(address=deployed_contract_address, abi=contract_abi)
-        
-        accounts = w3.eth.accounts
-    
-        
-        tx_hash = contract.functions.perform_transactions(str(obj.agricultureBoardID), str(obj.buyerID), str(obj.farmerID), str(obj.productID), int(obj.price), int(obj.qty)).transact({'from': accounts[0]})
-        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)        
-        
-    
     @staticmethod
     def update(obj):
+        # Only business fields are updated. The seal columns (isBlockChainGenerated,
+        # hash, prevHash, sequenceNumber) are owned by HashChain: editing a sealed
+        # transaction keeps its stored hash, so the Blockchain Report flags the edit.
         conn = pyodbc.connect(connString, autocommit=True)
         cursor = conn.cursor()
-        sqlcmd1 = "UPDATE TransactionDetails SET agricultureBoardID = ?,gstNbr = ?,buyerID = ?,farmerID = ?,effDate = ?,productID = ?,price = ?,qty = ?,isBlockChainGenerated = ?,hash = ?,prevHash = ?,sequenceNumber = ? WHERE orderID = ?"
-        cursor.execute(sqlcmd1,  (obj.agricultureBoardID,obj.gstNbr,obj.buyerID,obj.farmerID,datetime.datetime.strptime(obj.effDate.replace('T', ' '), '%Y-%m-%d'),obj.productID,obj.price,obj.qty,obj.isBlockChainGenerated,obj.hash,obj.prevHash,obj.sequenceNumber,obj.orderID))
+        sqlcmd1 = "UPDATE TransactionDetails SET agricultureBoardID = ?,gstNbr = ?,buyerID = ?,farmerID = ?,effDate = ?,productID = ?,price = ?,qty = ? WHERE orderID = ?"
+        cursor.execute(sqlcmd1,  (obj.agricultureBoardID,obj.gstNbr,obj.buyerID,obj.farmerID,datetime.datetime.strptime(obj.effDate.replace('T', ' '), '%Y-%m-%d'),obj.productID,obj.price,obj.qty,obj.orderID))
         cursor.close()
         conn.close()
-    
+
     @staticmethod
     def delete(unique_id):
         conn = pyodbc.connect(connString, autocommit=True)

@@ -5,6 +5,7 @@
 {% block content %}
     <h2>Blockchain Generation</h2>
         <form id="frm" name="frm" method="post" action="/ProcessBlockchainGeneration">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div class="form-group row">
         <label class="col-sm-6 col-form-label">No of Blocks Are Created</label>
         <div class="col-sm-6">

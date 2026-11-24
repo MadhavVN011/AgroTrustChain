@@ -4,10 +4,14 @@
 {% block content %}
     <h2 class="heading">{{operation}}  Transaction Details</h2>
     <form id="frm" name="frm" method="post" action="/ProcessTransactionDetailsOperation" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                
       
          <input type="hidden" name="operation" value="{{ operation }}"/>
          <input type="hidden" name="orderID" value="{{ row.orderID }}"/>
+         {% if operation != 'Create' and row.isBlockChainGenerated %}
+         <div class="alert alert-warning">This transaction is sealed in block #{{ row.sequenceNumber }}. Changing or deleting it will be flagged as tampering on the Blockchain Report.</div>
+         {% endif %}
 
         
 

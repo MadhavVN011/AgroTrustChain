@@ -39,6 +39,7 @@ instance/
 # Never commit credentials, mnemonics, or private keys.
 .env
 .env.*
+!.env.example
 .secret
 *.pem
 *.key
