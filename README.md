@@ -6,7 +6,11 @@ application backed by SQL Server for operational records and a private Ethereum 
 
 Every purchase transaction between a farmer, a buyer, and an agriculture board is written to a
 relational database, mirrored onto an Ethereum smart contract through Web3.py, and chained into a
-SHA-256 hash ledger (`hash` / `prevHash`) that can be audited from a web report.
+SHA-256 hash ledger (`hash` / `prevHash`) that a web report re-verifies on every view.
+
+**Quick start:** with Docker installed, run `docker compose up --build`, open
+<http://localhost:5000> and log in as `1@1.com` / `1`. See [Setup with Docker](#setup-with-docker), or
+[CONTRIBUTING.md](CONTRIBUTING.md) to run it without Docker.
 
 Created by **Madhav Nair**, **Ishaan Chaturvedi**, and **Kunal Saha**.
 
@@ -20,21 +24,21 @@ Agricultural Products Traceability Using Ethereum Based AgroTrustChain Framework
 1. [Motivation](#motivation)
 2. [What the System Does](#what-the-system-does)
 3. [Architecture](#architecture)
-4. [Repository Layout](#repository-layout)
-5. [Technology Stack](#technology-stack)
-6. [Data Model](#data-model)
-7. [Smart Contracts](#smart-contracts)
-8. [The Hash Chain (Block Generation)](#the-hash-chain-block-generation)
-9. [Role-Based Access Control](#role-based-access-control)
-10. [Application Routes](#application-routes)
-11. [Setup and Installation](#setup-and-installation)
-12. [Running the Project](#running-the-project)
-13. [Typical Workflow](#typical-workflow)
-14. [Research Context: WTH-Raft and the AgroTrustChain Framework](#research-context-wth-raft-and-the-agrotrustchain-framework)
-15. [Implementation Status vs. Paper](#implementation-status-vs-paper)
-16. [Known Limitations](#known-limitations)
-17. [Future Work](#future-work)
-18. [Authors](#authors)
+4. [Technology Stack](#technology-stack)
+5. [Data Model](#data-model)
+6. [Smart Contracts](#smart-contracts)
+7. [The Hash Chain (Block Generation)](#the-hash-chain-block-generation)
+8. [Role-Based Access Control](#role-based-access-control)
+9. [Application Routes](#application-routes)
+10. [Setup with Docker](#setup-with-docker)
+11. [Typical Workflow](#typical-workflow)
+12. [Research Context: WTH-Raft and the AgroTrustChain Framework](#research-context-wth-raft-and-the-agrotrustchain-framework)
+13. [Implementation Status vs. Paper](#implementation-status-vs-paper)
+14. [Known Limitations](#known-limitations)
+15. [Future Work](#future-work)
+16. [Authors](#authors)
+
+Also in this repository: [CONTRIBUTING.md](CONTRIBUTING.md) (development setup, repository layout, conventions) and [SECURITY.md](SECURITY.md) (security status and known limitations).
 
 ---
 
@@ -60,12 +64,12 @@ immutable, independently verifiable, and auditable end-to-end — "farm to fork"
   number, and effective date.
 - **Anchors each transaction on-chain** by invoking a Solidity contract on a private Ethereum
   network through Web3.py at the moment the transaction is created.
-- **Generates a hash chain** over pending transactions, computing a SHA-256 digest per record and
-  linking it to the previous record's hash.
-- **Produces an audit report** showing each transaction with its hash and previous hash, so any
-  break in the chain is immediately visible.
+- **Generates a hash chain** over pending transactions, computing a SHA-256 digest of each
+  record's full contents together with the previous record's hash.
+- **Produces an audit report** that recomputes every hash and checks every link, flagging any
+  sealed transaction that was edited, deleted or re-ordered.
 - **Enforces role-based access** so each module (boards, buyers, farmers, products, roles,
-  transactions, users) is gated by per-role permission flags.
+  transactions, users) is gated by per-role permission flags, with a separate login per browser.
 
 ## Architecture
 
@@ -100,58 +104,8 @@ immutable, independently verifiable, and auditable end-to-end — "farm to fork"
 joins, reports). Ethereum holds the immutable attestation. The SHA-256 `hash`/`prevHash` columns
 give a third, self-contained integrity check that works even when the chain is offline.
 
-## Repository Layout
-
-```
-MAJOR PROJECT/
-├── AgricultureFoodSupplyChain/                    # Flask application
-│   ├── AgricultureFoodSupplyChainV1DB.bak         # SQL Server database backup (restore this)
-│   └── AgricultureFoodSupplyChain/
-│       └── src/
-│           ├── AgricultureFoodSupplyChainV1Server.py  # Flask app — all routes (~900 lines)
-│           ├── Constants.py                       # DB connection string + contract address
-│           ├── AgricultureBoardModel.py           # DAO: AgricultureBoard table
-│           ├── BuyerModel.py                      # DAO: Buyer table
-│           ├── FarmerModel.py                     # DAO: Farmer table
-│           ├── ProductModel.py                    # DAO: Product table
-│           ├── RoleModel.py                       # DAO: Role table (permission flags)
-│           ├── UsersModel.py                      # DAO: Users table
-│           ├── TransactionDetailsModel.py         # DAO + Web3 on-chain write
-│           ├── templates/                         # 22 Jinja2 templates
-│           │   ├── Home.html                      # Base layout (sidebar + topbar)
-│           │   ├── Login.html, Dashboard.html, Information.html
-│           │   ├── ChangePassword.html
-│           │   ├── <Entity>Listing.html           # Table view per entity
-│           │   ├── <Entity>Operation.html         # Create / Edit / Delete form per entity
-│           │   ├── BlockChainGeneration.html      # Pending vs. generated block counts
-│           │   ├── BlockchainGenerationResult.html
-│           │   └── BlockChainReport.html          # Hash / prevHash audit trail
-│           └── static/                            # Bootstrap, jQuery, custom CSS, assets
-│               ├── agri-modern.css                # Project theme
-│               ├── charts/, UPLOADED_FILES/       # Output/upload directories
-│               └── bootstrap.*, jquery.min.js, metisMenu, simplebar, waves
-│
-├── AgricultureFoodSupplyChain-Truffle/            # Ethereum / Truffle project
-│   ├── contracts/
-│   │   ├── AgricultureBoardContract.sol           # Per-entity transaction recorders
-│   │   ├── BuyerContract.sol
-│   │   ├── FarmerContract.sol
-│   │   ├── ProductContract.sol
-│   │   ├── RoleContract.sol
-│   │   ├── TransactionDetailsContract.sol         # ← the one the Flask app calls
-│   │   ├── UsersContract.sol
-│   │   ├── AgroCoin.sol                           # ERC20-style token (AGC, supply 1,000,000)
-│   │   ├── TrustCoin.sol                          # ERC20-style token (TRC, supply 500,000)
-│   │   └── Migrations.sol
-│   ├── migrations/                                # Truffle deployment scripts (1–8)
-│   ├── build/contracts/*.json                     # Compiled ABIs + deployed addresses
-│   └── truffle-config.js                          # solc 0.8.10, dev network 127.0.0.1:7545
-│
-├── Major Research Paper.md                        # The research paper
-├── requirements.txt                               # Python dependencies
-├── .gitignore
-└── README.md                                      # This file
-```
+Under Docker each box above is a container: `db` (SQL Server 2022), `ganache`, a one-shot
+`contracts` container that runs `truffle migrate`, and `app` (Flask under gunicorn).
 
 ## Technology Stack
 
@@ -167,6 +121,7 @@ MAJOR PROJECT/
 | Contract tooling | Truffle |
 | Blockchain middleware | Web3.py (`HTTPProvider`) |
 | Hashing | `hashlib` SHA-256 over `json.dumps(..., sort_keys=True)` |
+| Containers | Docker Compose: SQL Server 2022, Ganache v7, Node 18 + Truffle 5.11, Python 3.11 + gunicorn |
 | IDE project files | JetBrains PyCharm (`.idea/`) |
 
 ## Data Model
@@ -200,8 +155,9 @@ UUID strings generated in Python (`uuid.uuid4()`).
 `orderID` (PK), `agricultureBoardID` (FK), `gstNbr`, `buyerID` (FK), `farmerID` (FK), `effDate`,
 `productID` (FK), `price`, `qty`, `isBlockChainGenerated`, `hash`, `prevHash`, `sequenceNumber`
 
-`sequenceNumber` establishes the ordering of the hash chain. `isBlockChainGenerated` marks whether
-a record has already been sealed into the chain.
+`sequenceNumber` establishes the ordering of the hash chain. New transactions take the next free
+number, and `migrate.sql` adds a unique index on it. `isBlockChainGenerated` marks whether a record
+has already been sealed into the chain.
 
 ## Smart Contracts
 
@@ -229,19 +185,23 @@ contract TransactionDetailsContract {
 ```
 
 `TransactionDetailsModel.insert()` is the live integration point. After the row is committed to SQL
-Server it connects to Ganache, loads the ABI from
-`AgricultureFoodSupplyChain-Truffle/build/contracts/TransactionDetailsContract.json`, sends
-`perform_transactions(...)` from `accounts[0]`, and waits for the receipt:
+Server it connects to Ganache, loads `TransactionDetailsContract.json` from Truffle's build folder,
+looks up the contract address for the network Ganache reports, sends `perform_transactions(...)`
+from `accounts[0]`, and waits for the receipt:
 
 ```python
-w3 = Web3(HTTPProvider('http://localhost:7545'))
-contract = w3.eth.contract(address=contract_address, abi=contract_abi)
+w3 = Web3(HTTPProvider(Constants.eth_rpc_url))
+contract = _load_transaction_contract(w3)   # ABI + address from the Truffle artifact
 tx_hash = contract.functions.perform_transactions(
     str(obj.agricultureBoardID), str(obj.buyerID), str(obj.farmerID),
-    str(obj.productID), int(obj.price), int(obj.qty)
+    str(obj.productID), int(float(obj.price)), int(float(obj.qty))
 ).transact({'from': w3.eth.accounts[0]})
 receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
 ```
+
+Because the address comes from the artifact that `truffle migrate` writes, it no longer has to be
+copied into `Constants.py` after each deployment. Setting the `CONTRACT_ADDRESS` environment
+variable still overrides it.
 
 **Token contracts.** `AgroCoin` (AGC, 1,000,000 supply) and `TrustCoin` (TRC, 500,000 supply) are
 minimal balance/transfer contracts deployed alongside the entity contracts. They are the on-chain
@@ -265,56 +225,90 @@ but are **not yet called from the Flask application**.
 | TrustCoin | `0x92F40dFF7c6693DC47391Cd23EF914912601E732` |
 
 > These addresses are specific to one Ganache workspace. **Every fresh `truffle migrate` produces
-> new addresses** — see the setup notes below.
+> new addresses**, which the app picks up from the artifacts automatically. The Docker stack
+> deploys its own copies and keeps their artifacts in a Docker volume, so these files are not
+> modified.
 
 ## The Hash Chain (Block Generation)
 
 Independent of the Ethereum layer, the app maintains its own append-only hash chain over
-`TransactionDetails`. This is the "blockchain report" the auditor reads.
+`TransactionDetails` ([HashChain.py](AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/HashChain.py)).
+This is the "blockchain report" the auditor reads.
 
 **`/BlockChainGeneration`** counts how many transactions are already sealed
 (`isBlockChainGenerated = 1`) and how many are pending.
 
-**`/ProcessBlockchainGeneration`** seals the pending ones:
+**`/ProcessBlockchainGeneration`** appends the pending ones, in one database transaction:
 
-1. Find the hash of the last already-sealed record (by `sequenceNumber`) — this becomes the
-   starting `prevHash`.
+1. The tip of the chain is the sealed record with the highest `sequenceNumber`; its `hash` becomes
+   the starting `prevHash` (empty for the first block).
 2. For each pending record in `sequenceNumber` order:
-   - Concatenate `agricultureBoardID + gstNbr + buyerID + farmerID` into the block payload.
-   - Serialise deterministically: `json.dumps(payload, sort_keys=True).encode('utf-8')`.
-   - `block_hash = hashlib.sha256(serialized).hexdigest()`.
-   - Write `hash = block_hash`, `prevHash = <previous>`, `isBlockChainGenerated = 1`.
-   - Carry `block_hash` forward as the next record's `prevHash`.
+   - Build the block payload from **every** business field (`orderID`, `agricultureBoardID`,
+     `gstNbr`, `buyerID`, `farmerID`, `effDate`, `productID`, `price`, `qty`), plus
+     `sequenceNumber` and `prevHash`.
+   - Serialise deterministically: `json.dumps(payload, sort_keys=True, separators=(",", ":"))`.
+   - `hash = sha256(serialized)`; store `hash`, `prevHash`, `isBlockChainGenerated = 1`.
+   - Carry `hash` forward as the next record's `prevHash`.
 
-**`/BlockChainReport`** renders the full chain newest-first, so an auditor can walk backwards and
-verify that each record's `prevHash` matches its predecessor's `hash`. Any edit to a sealed
-transaction breaks the link and is visible immediately.
+**`/BlockChainReport`** walks the chain from the first block, recomputes each hash and checks each
+link, and marks every block *Verified*, *Tampered* or *Pending*:
+
+| What happened to a sealed record | How the report shows it |
+| --- | --- |
+| Any field edited (in the app or directly in SQL) | That block: "Data was changed after this block was sealed" |
+| Record deleted | The next block: "Link broken" |
+| Record re-sealed with a fresh hash | The next block: "Link broken" |
+
+Editing a sealed transaction in the app is allowed, but the form warns that the edit will show as
+tampering.
+
+**What it cannot catch:** someone with write access to the database who changes a record *and
+recomputes every later hash* produces a chain that verifies. Catching that needs the latest hash
+anchored somewhere they cannot write, such as the Ethereum contract (see Future Work).
+
+### Re-sealing an old chain
+
+Records sealed by versions of the app before this hash format will show as *Tampered*. If you trust
+the current data, unseal everything and generate blocks again:
+
+```sql
+UPDATE TransactionDetails SET isBlockChainGenerated = 0, hash = '', prevHash = '';
+```
+
+Then run `migrate.sql` again (it renumbers duplicate `sequenceNumber`s and adds the unique index)
+and use *Generate Blocks*. The database shipped in this repository has no sealed records, so a
+fresh setup does not need this.
 
 ## Role-Based Access Control
 
-Every protected route calls `process_role(option_id)` before doing any work. The mapping is:
+Logging in stores the user's ID in Flask's signed session cookie, so each browser has its own
+login. On every request the app reloads the user and their `Role` row from the database. Editing a
+role or deactivating a user (`isActive = 0`) therefore takes effect on the user's next click.
+*Logout* (`/Logout`) clears the session.
 
-| `option_id` | Module | Role flag |
-| --- | --- | --- |
-| 0 | Agriculture Board | `canAgricultureBoard` |
-| 1 | Buyer | `canBuyer` |
-| 2 | Farmer | `canFarmer` |
-| 3 | Product | `canProduct` |
-| 4 | Role | `canRole` |
-| 5 | Transaction Details | `canTransactionDetails` |
-| 6 | Users | `canUsers` |
+Each protected route is decorated with `@login_required("<flag>", "<module>")`:
 
-On login the user's `Role` row is loaded into a `RoleModel` and held in application state. If the
-flag is false, the request is redirected to `/Information` with an explanatory message. If no role
-is loaded at all (e.g. direct URL access without logging in), the user is told to log out and
-retry.
+| Module | Role flag |
+| --- | --- |
+| Agriculture Board | `canAgricultureBoard` |
+| Buyer | `canBuyer` |
+| Farmer | `canFarmer` |
+| Product | `canProduct` |
+| Role | `canRole` |
+| Transaction Details, and the three blockchain pages | `canTransactionDetails` |
+| Users | `canUsers` |
+
+Visitors who are not logged in are sent to the login page. Users whose role lacks the flag are
+sent to `/Information` with an explanatory message. The dashboard and *Change Password* need a
+login but no flag.
 
 ## Application Routes
 
 | Route | Method | Purpose |
 | --- | --- | --- |
 | `/` | GET | Login page |
-| `/processLogin` | POST | Authenticate, load role, show dashboard |
+| `/processLogin` | POST | Authenticate, start the session, redirect to the dashboard |
+| `/Logout` | GET | End the session |
 | `/Dashboard` | GET | Landing workspace with stats and module cards |
 | `/Information` | GET | Message/error page (permission denials, etc.) |
 | `/ChangePassword`, `/ProcessChangePassword` | GET, POST | Password change |
@@ -327,93 +321,60 @@ retry.
 | `/UsersListing` / `Operation` / `ProcessOperation` | GET, GET, POST | User CRUD |
 | `/BlockChainGeneration` | GET | Pending vs. sealed block counts |
 | `/ProcessBlockchainGeneration` | POST | Seal pending transactions into the hash chain |
-| `/BlockChainReport` | GET | Full hash-chain audit trail |
+| `/BlockChainReport` | GET | Re-verify the full hash chain and show the audit trail |
 
 Each `*Operation` route is driven by an `operation` query parameter of `Create`, `Edit`, or
 `Delete`, and each `Process*Operation` route dispatches on the same value posted from the form.
 
-## Setup and Installation
+## Setup with Docker
 
-### Prerequisites
-
-- **Windows** with **Microsoft SQL Server** (Express edition is fine) — the app uses the
-  `{SQL Server}` ODBC driver with Integrated Security. The connection string in `Constants.py` is
-  Windows-specific.
-- **Python 3.10**
-- **Node.js** and **Truffle** (`npm install -g truffle`)
-- **Ganache** (GUI or CLI), configured to serve on port **7545** with network id **5777**
-
-### 1. Restore the database
-
-Restore `AgricultureFoodSupplyChain/AgricultureFoodSupplyChainV1DB.bak` in SQL Server Management
-Studio as a database named **`AgricultureFoodSupplyChainV1`**. This brings the schema and any seed
-data (including the initial user and role rows needed to log in).
-
-### 2. Configure the connection
-
-Edit `AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src/Constants.py` and set `serverName`
-to your SQL Server instance:
-
-```python
-serverName = "YOURPC\\SQLEXPRESS"     # currently: MADHAVNAIRPC\SQLEXPRESS
-databaseName = "AgricultureFoodSupplyChainV1"
-```
-
-### 3. Install Python dependencies
+Works the same on Linux, macOS and Windows. The only requirement is
+[Docker](https://docs.docker.com/get-docker/) with Compose v2. Give Docker at least 4 GB of
+memory, since SQL Server alone needs 2 GB.
 
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/MadhavVN011/AgroTrustChain.git
+cd AgroTrustChain
+docker compose up --build
 ```
 
-The project depends on exactly three third-party packages — `Flask`, `pyodbc`, and `web3` —
-everything else it imports (`hashlib`, `json`, `uuid`, `datetime`, `time`, `os`, `pprint`) is in
-the standard library.
+The first run takes a few minutes to download images and build. When the `app` container logs
+`Listening at: http://0.0.0.0:5000`, open <http://localhost:5000> and log in with the seeded
+account **`1@1.com` / `1`**. Its role has every permission.
 
-Two notes on `requirements.txt`:
+What happens on start:
 
-- **`pyodbc` needs a system ODBC driver**, which pip does not install. On Windows the `{SQL Server}`
-  driver ships with SQL Server itself. On Linux/macOS you would install `msodbcsql18` and update
-  the connection string in `Constants.py`.
-- **`web3` is capped below v7.** The code uses the v5/v6 API (`from web3 import Web3, HTTPProvider`
-  and `w3.eth.wait_for_transaction_receipt(...)`); v7 reorganised parts of that surface. If you
-  upgrade past v6, re-test `TransactionDetailsModel.insert()`.
+1. `db` starts SQL Server 2022.
+2. `db-init` restores `AgricultureFoodSupplyChainV1DB.bak` the first time only, then runs
+   `migrate.sql`.
+3. `ganache` starts a private chain (network id 5777, chain id 1337, deterministic accounts).
+4. `contracts` runs `truffle migrate`, writing the ABIs and addresses to a shared volume.
+5. `app` starts once both one-shot jobs have succeeded.
 
-### 4. Start Ganache and deploy the contracts
+Everyday commands:
 
-Launch Ganache on `127.0.0.1:7545`, then:
+| Command | Effect |
+| --- | --- |
+| `docker compose up -d` | Start in the background |
+| `docker compose logs -f app` | Follow the web app's log |
+| `docker compose down` | Stop. Database and chain are kept in Docker volumes |
+| `docker compose down -v` | Stop and **delete** the database and chain, to start over from the `.bak` |
+| `docker compose up --build app` | Rebuild after changing Python code or templates |
 
-```bash
-cd AgricultureFoodSupplyChain-Truffle
-truffle compile
-truffle migrate --reset
-```
+**Configuration.** Defaults work without any setup. To change them, copy `.env.example` to `.env`:
 
-### 5. Update the contract address ⚠️
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MSSQL_SA_PASSWORD` | `AgroTrust_Dev_2026!` | SQL Server `sa` password. Set it before the first start: it is stored in the database volume |
+| `FLASK_SECRET_KEY` | random per start | Signs login cookies. Set it to stay logged in across restarts |
+| `APP_PORT`, `DB_PORT`, `GANACHE_PORT` | 5000, 1433, 7545 | Host ports. Change them if another program, such as Ganache GUI, already uses one |
 
-`truffle migrate` assigns **new addresses on every run**. Copy the freshly deployed
-`TransactionDetailsContract` address from the migration output and set it in `Constants.py`:
+All ports are bound to `127.0.0.1` only. To browse the database from SSMS or Azure Data Studio,
+connect to `localhost,1433` as `sa`. To connect MetaMask or `truffle console`, use
+`http://localhost:7545`.
 
-```python
-contract_address = "0x...."   # must match the deployed TransactionDetailsContract
-```
-
-If this is stale, creating a transaction will fail or silently write to the wrong contract. (The
-value currently committed in `Constants.py` does not match the address in the checked-in build
-artifacts, so expect to set this on first run.)
-
-## Running the Project
-
-Run the Flask app **from the `src` directory** — `TransactionDetailsModel.py` loads the contract
-ABI via the relative path `../../../AgricultureFoodSupplyChain-Truffle/build/contracts/...`, which
-only resolves correctly from there:
-
-```bash
-cd "AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/src"
-python AgricultureFoodSupplyChainV1Server.py
-```
-
-The app starts on Flask's default `http://127.0.0.1:5000/`. Open it and log in with a user from the
-restored `Users` table (the account must have `isActive = 1`).
+> **Apple Silicon:** Microsoft publishes SQL Server images for x86-64 only. Docker Desktop runs
+> them under emulation (enable *Use Rosetta* in its settings).
 
 ## Typical Workflow
 
@@ -426,12 +387,12 @@ restored `Users` table (the account must have `isActive = 1`).
    receipt is awaited before the request returns.
 4. **Generate blocks** — visit *Generate Blocks* to see how many transactions are unsealed, then
    submit to compute SHA-256 hashes and link each record to its predecessor.
-5. **Audit** — open *Blockchain Report* to inspect the chain: each row shows its own hash and the
-   hash of the record before it. A mismatch anywhere proves tampering.
+5. **Audit** — open *Blockchain Report*. It recomputes every hash and checks every link, and flags
+   each sealed transaction that was changed, deleted or re-ordered.
 
 ## Research Context: WTH-Raft and the AgroTrustChain Framework
 
-The accompanying paper (`Major Research Paper.md`) situates this implementation against the
+The accompanying paper ([`Research Paper.pdf`](Research%20Paper.pdf)) situates this implementation against the
 **Weighted Two-Hop Raft (WTH-Raft)** consensus mechanism and proposes AgroTrustChain as a
 smart-contract-driven successor.
 
@@ -494,7 +455,8 @@ To be precise about what the code in this repository does today versus what the 
 | Private Ethereum network (Ganache) | ✅ Implemented — network 5777, port 7545 |
 | Solidity contracts + Truffle migrations | ✅ Implemented — 10 contracts deployed |
 | Web3.py middleware | ✅ Implemented — on-chain write on transaction insert |
-| SHA-256 hash chain + audit report | ✅ Implemented — generation and reporting routes |
+| SHA-256 hash chain + audit report | ✅ Implemented — full-record hashes, verified on every report view |
+| Docker setup | ✅ Implemented — one command brings up the whole stack |
 | AgroCoin / TrustCoin token contracts | ⚠️ Deployed but not yet wired into the application |
 | Q-Score / R-Score on-chain scoring | 🔬 Described in the paper; not yet in the contracts |
 | Automated penalty mechanism | 🔬 Described in the paper; not yet in the contracts |
@@ -508,26 +470,9 @@ becomes executable.
 
 ## Known Limitations
 
-This is an academic project, and the code has rough edges worth naming before anyone deploys it:
-
-- **SQL injection** — the login, password-change, and block-generation paths build SQL by string
-  concatenation (`"... WHERE emailid = '" + emailid + "'"`). The entity DAOs correctly use
-  parameterised queries; these routes should be brought in line.
-- **Plaintext passwords** — credentials are stored and compared in clear text. They should be
-  salted and hashed (bcrypt/Argon2).
-- **Module-level session state** — `user_id`, `emailid`, and `role_object` are Python globals, not
-  Flask sessions. The application is effectively single-user and not safe for concurrent access.
-- **Windows/SQL Server coupling** — the `{SQL Server}` ODBC driver and Integrated Security make the
-  data layer Windows-only.
-- **Hardcoded contract address** — `contract_address` in `Constants.py` must be updated manually
-  after each migration.
-- **Partial hash payload** — the block hash covers only four columns (`agricultureBoardID`,
-  `gstNbr`, `buyerID`, `farmerID`). Product, price, quantity, and date are not hashed, so changes
-  to those fields would not break the chain.
-- **Relative ABI path** — the app must be launched from the `src` directory.
-- **Contract duplication** — the seven entity contracts are byte-for-byte identical apart from
-  their names; a single parameterised contract would serve.
-- **No tests** — `AgricultureFoodSupplyChain-Truffle/test/` is empty.
+This is an academic prototype and is not hardened for production. Security limitations are
+listed in [SECURITY.md](SECURITY.md) and other known gaps in
+[CONTRIBUTING.md](CONTRIBUTING.md#known-gaps).
 
 ## Future Work
 
@@ -538,8 +483,9 @@ This is an academic project, and the code has rough edges worth naming before an
 - Integrate computer-vision quality assessment to remove human error from the reputation engine.
 - Move bulk data (images, environmental logs) to IPFS and store only content hashes on-chain,
   avoiding the "storage explosion" problem.
-- Harden authentication: hashed passwords, Flask sessions, CSRF protection, parameterised queries
-  everywhere.
+- Anchor the latest chain hash in the Ethereum contract on every *Generate Blocks*, so even a full
+  rewrite of the database chain is detectable.
+- Harden authentication: hashed passwords and CSRF tokens (see [SECURITY.md](SECURITY.md)).
 - Deploy to a public or consortium testnet so consumers can verify provenance independently.
 - Add a consumer-facing traceability lookup (scan a code, see the full farm-to-fork history).
 
