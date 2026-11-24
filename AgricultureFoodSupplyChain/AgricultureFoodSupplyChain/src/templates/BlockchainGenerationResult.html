@@ -1,12 +1,20 @@
 {% extends "Home.html" %}
-
+{% import "_ui.html" as ui %}
+{% block title %}Blocks generated{% endblock %}
 {% block content %}
-    {% if blocksSealed %}
-    <h2>Blocks Created Successfully</h2>
-    <p>{{ blocksSealed }} transaction(s) were sealed into the chain.</p>
-    {% else %}
-    <h2>No Pending Transactions</h2>
-    <p>Every transaction is already sealed.</p>
-    {% endif %}
-    <a href="/BlockChainReport" class="btn btn-outline-primary btn-sm">View Blockchain Report</a>
+<div class="card result">
+  {% if blocksSealed %}
+  <div class="result-icon success">{{ ui.icon("check-circle", 26) }}</div>
+  <h1 class="result-title">Blocks Created Successfully</h1>
+  <p class="result-text">{{ blocksSealed }} transaction(s) were sealed into the chain, and the new chain tip was anchored on Ethereum.</p>
+  {% else %}
+  <div class="result-icon info">{{ ui.icon("info", 26) }}</div>
+  <h1 class="result-title">No Pending Transactions</h1>
+  <p class="result-text">Every transaction is already sealed.</p>
+  {% endif %}
+  <div class="result-actions">
+    <a class="btn btn-secondary" href="/TransactionDetailsListing">Transactions</a>
+    <a class="btn btn-primary" href="/BlockChainReport">{{ ui.icon("shield", 16) }} View Blockchain Report</a>
+  </div>
+</div>
 {% endblock %}

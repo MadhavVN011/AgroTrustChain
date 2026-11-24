@@ -1,18 +1,15 @@
-
-        {% extends "Home.html" %}
-
+{% extends "Home.html" %}
+{% import "_ui.html" as ui %}
+{% block title %}{{ "Done" if msgType == "Success" else "Notice" }}{% endblock %}
 {% block content %}
-    <div id="div1">
-	{% if msgType == 'Error' %}
-		<h2 class="alert alert-danger text-center">{{message}}</h2>
-     {% endif %}
-	{% if msgType == 'Success' %}
-		<h2 class="alert alert-success text-center">{{message}}</h2>
-     {% endif %}
-	{% if msgType == 'info' %}
-		<h2 class="alert alert-info text-center">{{message}}</h2>
-     {% endif %}   	 
-    </div>
-
+{% set tone = {"Success": "success", "Error": "danger"}.get(msgType, "info") %}
+<div class="card result">
+  <div class="result-icon {{ tone }}">{{ ui.icon({"success": "check-circle", "danger": "alert", "info": "info"}[tone], 26) }}</div>
+  <h1 class="result-title">{{ {"success": "Done", "danger": "Action not completed"}.get(tone, "Notice") }}</h1>
+  <p class="result-text">{{ message or "There is nothing to show." }}</p>
+  <div class="result-actions">
+    <a class="btn btn-secondary" href="javascript:history.back()">{{ ui.icon("arrow-left", 16) }} Go back</a>
+    <a class="btn btn-primary" href="/Dashboard">Dashboard</a>
+  </div>
+</div>
 {% endblock %}
-                

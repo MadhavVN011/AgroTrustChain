@@ -135,7 +135,16 @@ def test_change_password_stores_a_hash(client, fake_db):
     fake_db.handler = make_handler(Passwords.hash_password("pw"))
     login(client)
     response = client.post("/ProcessChangePassword", data={
-        "oldPassword": "pw", "newPassword": "new-pw", "confirmPassword": "new-pw", "csrf_token": csrf(client)})
+        "oldPassword": "pw", "newPassword": "new-password", "confirmPassword": "new-password", "csrf_token": csrf(client)})
     assert "Password Changed Successfully" in response.get_data(as_text=True)
     sql, params = next((sql, p) for sql, p in fake_db.executed if sql.startswith("UPDATE Users SET password"))
-    assert Passwords.verify(params[0], "new-pw")
+    assert Passwords.verify(params[0], "new-password")
+
+
+def test_short_new_password_is_refused(client, fake_db):
+    fake_db.handler = make_handler(Passwords.hash_password("pw"))
+    login(client)
+    response = client.post("/ProcessChangePassword", data={
+        "oldPassword": "pw", "newPassword": "short", "confirmPassword": "short", "csrf_token": csrf(client)})
+    assert "at least 8 characters" in response.get_data(as_text=True)
+    assert not [sql for sql, _ in fake_db.executed if sql.startswith("UPDATE Users SET password")]

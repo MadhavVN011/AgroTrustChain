@@ -1,43 +1,22 @@
 {% extends "Home.html" %}
-
+{% import "_ui.html" as ui %}
+{% block title %}Register batch{% endblock %}
 {% block content %}
-<h2 class="heading">Register Batch</h2>
-<form method="post" action="/ProcessBatchOperation">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-    <div class="form-group row">
-        <label for="farmerID" class="col-sm-3 col-form-label">Farmer</label>
-        <div class="col-sm-9">
-            <select class="form-control" id="farmerID" name="farmerID" required>
-                {% for dd_row in farmer_list %}<option value="{{ dd_row.farmerID }}">{{ dd_row.farmerName }}</option>{% endfor %}
-            </select>
-        </div>
+{{ ui.page_header("Register batch", "The TraceabilityManagement contract checks compliance before admitting the batch, and explains any rejection.", [("Batches", "/BatchListing"), ("Register", None)]) }}
+<form class="card" method="post" action="/ProcessBatchOperation" style="max-width:880px">
+  {{ ui.csrf_field() }}
+  <div class="card-body">
+    <div class="form-grid">
+      {{ ui.select("farmerID", "Farmer", farmer_list, "farmerID", "farmerName") }}
+      {{ ui.select("productID", "Product", product_list, "productID", "productName") }}
+      {{ ui.field("certificateNumber", "Certificate number", help="Its SHA-256 hash is stored on-chain and checked against the revocation list.", attrs='maxlength="200"') }}
+      {{ ui.field("certificateExpiry", "Certificate expiry", type="date", attrs='min="' ~ today ~ '"') }}
+      {{ ui.field("claimedQuality", "Claimed quality", type="number", help="0–100. Must be at least the contract's minimum quality.", attrs='min="0" max="100" step="1"') }}
     </div>
-    <div class="form-group row">
-        <label for="productID" class="col-sm-3 col-form-label">Product</label>
-        <div class="col-sm-9">
-            <select class="form-control" id="productID" name="productID">
-                {% for dd_row in product_list %}<option value="{{ dd_row.productID }}">{{ dd_row.productName }}</option>{% endfor %}
-            </select>
-        </div>
-    </div>
-    <div class="form-group row">
-        <label for="certificateNumber" class="col-sm-3 col-form-label">Certificate number</label>
-        <div class="col-sm-9">
-            <input type="text" class="form-control" id="certificateNumber" name="certificateNumber" maxlength="200" required/>
-            <small class="text-muted">Its SHA-256 hash is stored on-chain and checked against the revocation list.</small>
-        </div>
-    </div>
-    <div class="form-group row">
-        <label for="certificateExpiry" class="col-sm-3 col-form-label">Certificate expiry</label>
-        <div class="col-sm-9"><input type="date" class="form-control" id="certificateExpiry" name="certificateExpiry" min="{{ today }}" required/></div>
-    </div>
-    <div class="form-group row">
-        <label for="claimedQuality" class="col-sm-3 col-form-label">Claimed quality (0–100)</label>
-        <div class="col-sm-9"><input type="number" class="form-control" id="claimedQuality" name="claimedQuality" min="0" max="100" step="1" required/></div>
-    </div>
-    <div class="text-center">
-        <button type="submit" class="btn btn-outline-primary btn-sm">Register</button>
-        <a href="/BatchListing" class="btn btn-outline-primary btn-sm">Cancel</a>
-    </div>
+  </div>
+  <div class="card-footer">
+    <a class="btn btn-secondary" href="/BatchListing">Cancel</a>
+    <button type="submit" class="btn btn-primary">{{ ui.icon("certificate", 16) }} Register batch</button>
+  </div>
 </form>
 {% endblock %}

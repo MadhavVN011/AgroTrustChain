@@ -1,21 +1,34 @@
 {% extends "Home.html" %}
-
+{% import "_ui.html" as ui %}
+{% block title %}Inspect batch{% endblock %}
 {% block content %}
-<h2 class="heading">Inspect Batch {{ batch.batchID }}</h2>
-<p><b>Farmer:</b> {{ batch.farmerName or batch.farmerID }} &nbsp; <b>Product:</b> {{ batch.productName or '—' }}
-   &nbsp; <b>Certificate:</b> {{ batch.certificateNumber }} &nbsp; <b>Claimed quality:</b> {{ batch.claimedQuality }}</p>
-<p class="text-muted">Enter the quality found by the off-chain inspection. If it differs from the claim by more than the
-contract's tolerance, the claim is treated as inconsistent: the batch is revoked and the farmer's R-Score is cut automatically.</p>
-<form method="post" action="/ProcessBatchInspection">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+{{ ui.page_header("Inspect " ~ batch.batchID, "Record the quality found by the off-chain inspection.", [("Batches", "/BatchListing"), ("Inspect", None)]) }}
+<div class="grid grid-main-side" style="max-width:1080px">
+  <form class="card" method="post" action="/ProcessBatchInspection">
+    {{ ui.csrf_field() }}
     <input type="hidden" name="batchID" value="{{ batch.batchID }}"/>
-    <div class="form-group row">
-        <label for="inspectedQuality" class="col-sm-3 col-form-label">Inspected quality (0–100)</label>
-        <div class="col-sm-9"><input type="number" class="form-control" id="inspectedQuality" name="inspectedQuality" min="0" max="100" step="1" required/></div>
+    <div class="card-body">
+      <div class="form-grid" style="grid-template-columns:1fr">
+        {{ ui.field("inspectedQuality", "Inspected quality", type="number", help="0–100, as measured by the inspection.", attrs='min="0" max="100" step="1" autofocus') }}
+      </div>
+      <div class="alert alert-info" style="margin:18px 0 0">{{ ui.icon("info", 18) }}<div class="alert-body">If the result differs from the claimed quality by more than the contract's tolerance, the claim is inconsistent: the batch is revoked and the farmer's R-Score is cut automatically. Repeat offenders are suspended.</div></div>
     </div>
-    <div class="text-center">
-        <button type="submit" class="btn btn-outline-primary btn-sm">Record inspection</button>
-        <a href="/BatchListing" class="btn btn-outline-primary btn-sm">Cancel</a>
+    <div class="card-footer">
+      <a class="btn btn-secondary" href="/BatchListing">Cancel</a>
+      <button type="submit" class="btn btn-primary">{{ ui.icon("inspect", 16) }} Record inspection</button>
     </div>
-</form>
+  </form>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Batch</div></div>
+    <div class="card-body">
+      <dl class="dl" style="grid-template-columns:120px 1fr">
+        <dt>Farmer</dt><dd>{{ batch.farmerName or batch.farmerID }}</dd>
+        <dt>Product</dt><dd>{{ batch.productName or '—' }}</dd>
+        <dt>Certificate</dt><dd>{{ batch.certificateNumber }}</dd>
+        <dt>Expires</dt><dd>{{ batch.certificateExpiry }}</dd>
+        <dt>Claimed</dt><dd class="num">{{ batch.claimedQuality }}</dd>
+      </dl>
+    </div>
+  </div>
+</div>
 {% endblock %}

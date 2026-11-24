@@ -70,6 +70,7 @@ def check_csrf_token():
 def load_logged_in_user():
     g.user_id = None
     g.role = None
+    g.user = None
     if request.endpoint == "static":
         return
     user_id = session.get("user_id")
@@ -80,7 +81,7 @@ def load_logged_in_user():
         cursor = conn.cursor()
         cursor.execute(
             "SELECT u.userID, r.roleID, r.roleName, r.canRole, r.canUsers, r.canAgricultureBoard, r.canBuyer, "
-            "r.canFarmer, r.canProduct, r.canTransactionDetails "
+            "r.canFarmer, r.canProduct, r.canTransactionDetails, u.userName, u.emailid "
             "FROM Users u JOIN Role r ON r.roleID = u.roleID WHERE u.userID = ? AND u.isActive = 1",
             user_id,
         )
@@ -91,7 +92,19 @@ def load_logged_in_user():
         session.clear()
         return
     g.user_id = row[0]
-    g.role = RoleModel(*row[1:])
+    g.role = RoleModel(*row[1:10])
+    name = (row[10] if len(row) > 10 else None) or "User"
+    g.user = {
+        "name": name,
+        "email": row[11] if len(row) > 11 else "",
+        "role": g.role.roleName,
+        "initials": "".join(part[0] for part in name.split()[:2]).upper() or "U",
+    }
+
+
+@app.context_processor
+def inject_user():
+    return {"current_user": g.get("user"), "nav_role": g.get("role")}
 
 
 def show_info(message, msgType="Error"):
@@ -172,17 +185,50 @@ def processChangePassword():
 
     if newPassword.strip() != confirmPassword.strip():
         return render_template("ChangePassword.html", msg="New Password and Confirm Password are NOT same")
-    if not newPassword.strip():
-        return render_template("ChangePassword.html", msg="New Password cannot be empty")
+    if len(newPassword.strip()) < 8:
+        return render_template("ChangePassword.html", msg="New Password must be at least 8 characters")
 
     UsersModel.set_password(g.user_id, newPassword)
     return render_template("ChangePassword.html", msg="Password Changed Successfully")
 
 
+def _dashboard_data(role):
+    data = {"recent": [], "chain": None, "suspended": None, "chain_error": None}
+    conn = pyodbc.connect(connString, autocommit=True)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT (SELECT COUNT(*) FROM TransactionDetails), "
+            "(SELECT COUNT(*) FROM TransactionDetails WHERE isBlockChainGenerated = 1), "
+            "(SELECT COUNT(*) FROM Farmer), (SELECT COUNT(*) FROM Buyer), (SELECT COUNT(*) FROM Product), "
+            "(SELECT COUNT(*) FROM AgricultureBoard), (SELECT COUNT(*) FROM Batch), "
+            "(SELECT COUNT(*) FROM Batch WHERE status = 'Pending')")
+        row = cursor.fetchone()
+    finally:
+        conn.close()
+    keys = ("transactions", "sealed", "farmers", "buyers", "products", "boards", "batches", "pending_batches")
+    data["counts"] = dict(zip(keys, row or [0] * len(keys)))
+
+    if role.canTransactionDetails:
+        data["recent"] = TransactionDetailsModel.get_listing(limit=6)
+        try:
+            _, data["chain"] = HashChain.verify_chain()
+        except Exception as error:  # the database part failed; keep the dashboard usable
+            data["chain_error"] = str(error)
+    if role.canFarmer:
+        try:
+            farmers = FarmerModel.get_name_id()
+            scores = Blockchain.supplier_scores([f.farmerID for f in farmers])
+            data["suspended"] = [f.farmerName for f in farmers if scores[f.farmerID]["suspended"]]
+        except Blockchain.BlockchainError:
+            data["suspended"] = None
+    return data
+
+
 @app.route("/Dashboard")
 @login_required()
 def Dashboard():
-    return render_template("Dashboard.html")
+    return render_template("Dashboard.html", **_dashboard_data(g.role))
 
 
 @app.route("/Information")
@@ -443,7 +489,7 @@ def process_Role_operation():
 @app.route("/TransactionDetailsListing")
 @login_required("canTransactionDetails", "TransactionDetails")
 def TransactionDetails_listing():
-    records = TransactionDetailsModel.get_all()
+    records = TransactionDetailsModel.get_listing()
     return render_template("TransactionDetailsListing.html", records=records)
 
 
@@ -512,7 +558,8 @@ def process_TransactionDetails_operation():
 @login_required("canUsers", "Users")
 def Users_listing():
     records = UsersModel.get_all()
-    return render_template("UsersListing.html", records=records)
+    role_names = {str(r.roleID): r.roleName for r in RoleModel.get_all()}
+    return render_template("UsersListing.html", records=records, role_names=role_names)
 
 
 @app.route("/UsersOperation")

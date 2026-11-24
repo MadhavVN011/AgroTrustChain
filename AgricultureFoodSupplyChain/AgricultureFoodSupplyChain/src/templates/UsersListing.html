@@ -1,45 +1,32 @@
-
-    
 {% extends "Home.html" %}
-
+{% import "_ui.html" as ui %}
+{% block title %}Users{% endblock %}
 {% block content %}
-    <h2 class="heading"> Users Listing</h2>
-    
-<div class="text-center m-2"><a href="/UsersOperation?operation=Create" class="btn btn-outline-primary btn-sm ">Create</a></div>
-    <table class="table table-bordered table-striped">
-  <thead>
-    <tr>
-      <th scope="col">User Name</th>
-
-      <th scope="col">Action</th>
-      
-    </tr>
-  </thead>
-  <tbody>
-        {% if records | length == 0 %}
-            <tr>
-                <td colspan="2">
-                    <div class="alert alert-info" style="display:block" >
-                        <div class="text-center"> <b>No&nbsp;</b><span>Users Found</span>
-                        </div>
-                    </div>
-                </td>
-            </tr>
-        {% endif %}
-    {% for row in records %}
+{% call ui.page_header("Users", "People who can sign in, and the role that decides what they can open.") %}
+  <a class="btn btn-primary" href="/UsersOperation?operation=Create">{{ ui.icon("plus", 16) }} Add user</a>
+{% endcall %}
+<div class="card">
+  {% if records %}
+  <div class="table-toolbar">{{ ui.search("records", "Search users") }}<span class="muted" data-count-for="records">{{ records | length }} total</span></div>
+  <div class="table-wrap">
+    <table class="table" id="records">
+      <thead><tr><th>User</th><th>Role</th><th>Contact</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for row in records %}
         <tr>
-            <td>{{ row.userName }}</td>
-
-        <td>
-            <a href="/UsersOperation?operation=Edit&unique_id={{ row.userID }}" class="btn btn-outline-warning btn-sm ">Edit</a>
-            <a href="/UsersOperation?operation=Delete&unique_id={{ row.userID }}" class="btn btn-outline-warning btn-sm ">Delete</a>
-        </td>
+          <td class="primary">{{ row.userName }}<span class="sub">{{ row.emailid }}</span></td>
+          <td>{{ (role_names or {}).get(row.roleID | string, "—") }}</td>
+          <td class="nowrap">{{ row.contactNo or "—" }}</td>
+          <td>{% if row.isActive %}{{ ui.badge("Active", "success") }}{% else %}{{ ui.badge("Inactive", "neutral") }}{% endif %}</td>
+          <td class="actions">{{ ui.row_actions("/UsersOperation?operation=Edit&unique_id=" ~ row.userID, "/UsersOperation?operation=Delete&unique_id=" ~ row.userID) }}</td>
         </tr>
-    {% endfor %}
-   </tbody>
-</table>
-<div class="text-center m-2"><a href="/UsersOperation?operation=Create" class="btn btn-outline-primary btn-sm ">Create</a></div>
+      {% endfor %}
+      {{ ui.no_match_row(5) }}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("users", "No users yet", "Add a user and give them a role.", "/UsersOperation?operation=Create", "Add user") }}
+  {% endif %}
+</div>
 {% endblock %}
-    
-    
-    

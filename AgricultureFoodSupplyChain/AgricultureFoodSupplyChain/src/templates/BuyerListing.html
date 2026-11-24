@@ -1,47 +1,32 @@
-
-    
 {% extends "Home.html" %}
-
+{% import "_ui.html" as ui %}
+{% block title %}Buyers{% endblock %}
 {% block content %}
-    <h2 class="heading"> Buyer Listing</h2>
-    
-<div class="text-center m-2"><a href="/BuyerOperation?operation=Create" class="btn btn-outline-primary btn-sm ">Create</a></div>
-    <table class="table table-bordered table-striped">
-  <thead>
-    <tr>
-      <th scope="col">Buyer Name</th>
-<th scope="col">Contact No</th>
-
-      <th scope="col">Action</th>
-      
-    </tr>
-  </thead>
-  <tbody>
-        {% if records | length == 0 %}
-            <tr>
-                <td colspan="3">
-                    <div class="alert alert-info" style="display:block" >
-                        <div class="text-center"> <b>No&nbsp;</b><span>Buyer Found</span>
-                        </div>
-                    </div>
-                </td>
-            </tr>
-        {% endif %}
-    {% for row in records %}
+{% call ui.page_header("Buyers", "Distributors, retailers and other purchasers.") %}
+  <a class="btn btn-primary" href="/BuyerOperation?operation=Create">{{ ui.icon("plus", 16) }} Add buyer</a>
+{% endcall %}
+<div class="card">
+  {% if records %}
+  <div class="table-toolbar">
+    {{ ui.search("records", "Search buyers") }}
+    <span class="muted" data-count-for="records">{{ records | length }} total</span>
+  </div>
+  <div class="table-wrap">
+    <table class="table" id="records">
+      <thead><tr><th>Name</th><th>Contact</th><th>Location</th><th></th></tr></thead>
+      <tbody>
+      {% for row in records %}
         <tr>
-            <td>{{ row.buyerName }}</td>
-<td>{{ row.contactNbr }}</td>
-
-        <td>
-            <a href="/BuyerOperation?operation=Edit&unique_id={{ row.buyerID }}" class="btn btn-outline-warning btn-sm ">Edit</a>
-            <a href="/BuyerOperation?operation=Delete&unique_id={{ row.buyerID }}" class="btn btn-outline-warning btn-sm ">Delete</a>
-        </td>
+          <td class="primary">{{ row.buyerName }}<span class="sub">{{ row.emailID }}</span></td><td class="nowrap">{{ row.contactNbr }}</td><td>{{ row.city }}{% if row.country %}<span class="sub">{{ row.country }}</span>{% endif %}</td>
+          <td class="actions">{{ ui.row_actions("/BuyerOperation?operation=Edit&unique_id=" ~ row.buyerID, "/BuyerOperation?operation=Delete&unique_id=" ~ row.buyerID) }}</td>
         </tr>
-    {% endfor %}
-   </tbody>
-</table>
-<div class="text-center m-2"><a href="/BuyerOperation?operation=Create" class="btn btn-outline-primary btn-sm ">Create</a></div>
+      {% endfor %}
+      {{ ui.no_match_row(4) }}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("buyer", "No buyers yet", "Add the first buyer to start recording transactions.", "/BuyerOperation?operation=Create", "Add buyer") }}
+  {% endif %}
+</div>
 {% endblock %}
-    
-    
-    
