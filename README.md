@@ -74,6 +74,11 @@ immutable, independently verifiable, and auditable end-to-end — "farm to fork"
 - **Generates a hash chain** over pending transactions, computing a SHA-256 digest of each
   record's full contents together with the previous record's hash.
 - **Anchors the chain's tip on Ethereum** each time blocks are sealed.
+- **Admits product batches only if they comply**: certificate hash not revoked, certificate not
+  expired, claimed quality above the minimum, all checked by a smart contract.
+- **Scores every farmer on-chain** with a Q-Score (inspected quality) and an R-Score (honest
+  reporting), combined into a consensus weight **W = αQ + βR**. An inconsistent quality claim is
+  **penalised automatically**, and repeat offenders are suspended from trading.
 - **Produces an audit report** that recomputes every hash, checks every link and compares the tip
   with the Ethereum anchor, flagging any sealed transaction that was edited, deleted, re-ordered
   or rewritten.
@@ -228,6 +233,25 @@ substrate for the incentive and reputation economy described in the paper (rewar
 reporting, staking against quality claims). They compile and deploy via migration `9_deploy_tokens.js`
 but are **not yet called from the Flask application**.
 
+### TraceabilityManagement: compliance, reputation and penalties
+
+[TraceabilityManagement.sol](AgricultureFoodSupplyChain-Truffle/contracts/TraceabilityManagement.sol)
+implements the paper's smart-contract layer (Fig. 1). The app uses it from the *Quality &
+Reputation* pages:
+
+| Function | What it does |
+| --- | --- |
+| `registerBatch` | Admits a batch only if the certificate hash is set and not revoked, the certificate has not expired, the claimed quality is at least `minQuality`, and the supplier is not suspended. Otherwise it reverts with the reason, which the app shows. |
+| `updateQuality` | Records the off-chain inspection result. Q-Score becomes a moving average of inspected quality. If the claim is within `tolerance` of the inspection, R-Score rises by `honestReward`; otherwise the batch is revoked and R-Score falls by `penalty`. Below `suspendBelow` the supplier is suspended. |
+| `revokeCertificate` | Blocks the certificate for new batches and invalidates the batches that used it. |
+| `weightOf` | The consensus weight W = (α·Q + β·R) / 100, the paper's "R = αQ + βS". Zero while suspended. |
+| `isEligible` | Checked before every new transaction: a suspended farmer cannot trade. |
+| `reinstateSupplier`, `setParameters` | Owner-only administration. |
+
+The paper gives no numbers for these rules. The defaults are this implementation's choices:
+α = β = 50, reward +2, penalty −20, tolerance 10, minimum quality 40, suspension below R = 20.
+Scores and penalties live on-chain. The `Batch` table keeps batch details for listing.
+
 ### Deployed addresses (Ganache network 5777, from the checked-in build artifacts)
 
 | Contract | Address |
@@ -240,6 +264,7 @@ but are **not yet called from the Flask application**.
 | RoleContract | `0x1A5e4CeDeF3b5eC15516A65B63E32d9C0B0B38De` |
 | TransactionDetailsContract | none: the contract gained chain anchoring, so redeploy it with `truffle migrate --reset` |
 | UsersContract | `0xaF29C54F86d2046892488ac81e2aC33FeA68161E` |
+| TraceabilityManagement | none yet: deploy with `truffle migrate` |
 | AgroCoin | `0x5778b973EB121F02E035415d4e0b58a232c2E59A` |
 | TrustCoin | `0x92F40dFF7c6693DC47391Cd23EF914912601E732` |
 
@@ -321,7 +346,7 @@ Each protected route is decorated with `@login_required("<flag>", "<module>")`:
 | --- | --- |
 | Agriculture Board | `canAgricultureBoard` |
 | Buyer | `canBuyer` |
-| Farmer | `canFarmer` |
+| Farmer, and the Quality & Reputation pages (batches, inspections, reputation) | `canFarmer` |
 | Product | `canProduct` |
 | Role | `canRole` |
 | Transaction Details, and the three blockchain pages | `canTransactionDetails` |
@@ -348,6 +373,10 @@ login but no flag.
 | `/RoleListing` / `Operation` / `ProcessOperation` | GET, GET, POST | Role CRUD |
 | `/TransactionDetailsListing` / `Operation` / `ProcessOperation` | GET, GET, POST | Transaction CRUD + on-chain write |
 | `/UsersListing` / `Operation` / `ProcessOperation` | GET, GET, POST | User CRUD |
+| `/BatchListing`, `/BatchOperation`, `/ProcessBatchOperation` | GET, GET, POST | List and register batches (compliance checked on-chain) |
+| `/BatchInspection`, `/ProcessBatchInspection` | GET, POST | Record an inspection; applies the reputation rules and penalties |
+| `/ProcessRevokeCertificate` | POST | Revoke a batch's certificate |
+| `/Reputation`, `/ProcessReinstateSupplier` | GET, POST | On-chain Q/R scores and weights; lift a suspension |
 | `/BlockChainGeneration` | GET | Pending vs. sealed block counts |
 | `/ProcessBlockchainGeneration` | POST | Seal pending transactions into the hash chain |
 | `/BlockChainReport` | GET | Re-verify the full hash chain and show the audit trail |
@@ -415,14 +444,19 @@ connect to `localhost,1433` as `sa`. To connect MetaMask or `truffle console`, u
 1. **Log in** — the password is checked against the salted hash in `Users`, and the associated
    `Role` determines which sidebar modules are usable.
 2. **Register master data** — add Agriculture Boards, Farmers, Buyers, and Products.
-3. **Record a transaction** — from *Transactions → Create*, select board, farmer, buyer, and
+3. **Register and inspect batches** — under *Batches*, register a farmer's batch with its
+   certificate and claimed quality; the contract rejects non-compliant batches. Record the
+   inspection result: a consistent claim raises the farmer's R-Score, and an inconsistent one is
+   penalised automatically. *Reputation* shows the live scores and weights.
+4. **Record a transaction** — from *Transactions → Create*, select board, farmer, buyer, and
    product; enter GST number, effective date, price, and quantity. On save,
    `perform_transactions(...)` is executed on the Ethereum contract and its receipt awaited; only
-   then is the row inserted into SQL Server, together with the Ethereum transaction hash.
-4. **Generate blocks** — visit *Generate Blocks* to see how many transactions are unsealed, then
+   then is the row inserted into SQL Server, together with the Ethereum transaction hash. A farmer
+   suspended by the reputation engine cannot be part of a new transaction.
+5. **Generate blocks** — visit *Generate Blocks* to see how many transactions are unsealed, then
    submit to compute SHA-256 hashes, link each record to its predecessor and anchor the new tip
    on Ethereum.
-5. **Audit** — open *Blockchain Report*. It recomputes every hash, checks every link and compares
+6. **Audit** — open *Blockchain Report*. It recomputes every hash, checks every link and compares
    the tip with the Ethereum anchor, flagging any sealed transaction that was changed, deleted,
    re-ordered or rewritten.
 
@@ -496,15 +530,26 @@ To be precise about what the code in this repository does today versus what the 
 | Automated tests | ✅ Implemented — Python (pytest) and Solidity (Truffle) suites |
 | Docker setup | ✅ Implemented — one command brings up the whole stack |
 | AgroCoin / TrustCoin token contracts | ⚠️ Deployed but not yet wired into the application |
-| Q-Score / R-Score on-chain scoring | 🔬 Described in the paper; not yet in the contracts |
-| Automated penalty mechanism | 🔬 Described in the paper; not yet in the contracts |
-| WTH-Raft two-hop consensus simulation | 🔬 Evaluated in the paper; not part of this codebase |
+| Q-Score / R-Score on-chain scoring | ✅ Implemented — `TraceabilityManagement`, weight W = αQ + βR, shown on *Reputation* |
+| Automated penalty mechanism | ✅ Implemented — inconsistent claims revoke the batch, cut R-Score and can suspend the farmer |
+| Certificate, expiry and quality compliance | ✅ Implemented — checked on-chain before a batch is admitted; suspended farmers cannot trade |
+| WTH-Raft two-hop consensus simulation | ✅ Implemented — [simulation/](simulation/), compared with Raft and PBFT; see [results](simulation/results/RESULTS.md) |
 | IoT sensor / computer-vision quality feed | 🔬 Future work |
 
-The contracts in `contracts/` are deliberately simple recorders — they establish the on-chain
-anchoring path end-to-end. Extending `TransactionDetailsContract` with reputation state, quality
-thresholds, and penalty logic is the natural next step and is where the paper's contribution
-becomes executable.
+**What the simulation found.** [simulation/results/RESULTS.md](simulation/results/RESULTS.md)
+checks each of the paper's claims against the simulated numbers:
+
+- **Consensus success: confirmed.** With 20% malicious nodes, WTH-Raft decided 99.9% of rounds
+  correctly (the paper claims above 94%), against 75% for Raft. It held against "sleeper" attackers
+  that build up reputation first.
+- **Throughput: partly confirmed.** WTH-Raft is far faster than Raft and PBFT at scale, but its
+  TPS still falls as the network grows, rather than staying flat.
+- **Latency: partly confirmed.** WTH-Raft is 22–60% faster than Raft from 100 to 200 nodes, but
+  slower in small networks, because of the extra hop.
+
+The security result rests on one strong assumption: an off-chain inspection reveals the truth
+after every round. The simulation [README](simulation/README.md) states which parameters come from
+the paper and which are this implementation's choices.
 
 ## Known Limitations
 
@@ -514,9 +559,10 @@ listed in [SECURITY.md](SECURITY.md) and other known gaps in
 
 ## Future Work
 
-- Implement Q-Score and R-Score as on-chain state with the weighted-scoring formula from the paper.
-- Add the automated penalty mechanism and certificate/expiry validation to the transaction contract.
-- Wire AgroCoin and TrustCoin into an incentive loop that rewards honest reporting.
+- Wire AgroCoin and TrustCoin into the reputation engine: stake TrustCoin on quality claims and
+  slash it alongside the R-Score penalty, and reward honest reporting with AgroCoin.
+- Run the simulation with a weaker inspection oracle (delayed, sampled, sometimes wrong), which is
+  the main open question in the Byzantine results.
 - Ingest real-time IoT sensor data (temperature, humidity, storage conditions) into the quality score.
 - Integrate computer-vision quality assessment to remove human error from the reputation engine.
 - Move bulk data (images, environmental logs) to IPFS and store only content hashes on-chain,

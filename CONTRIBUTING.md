@@ -126,7 +126,8 @@ the `Users` table (the account must have `isActive = 1`).
 ```
 AgroTrustChain/
 ├── .github/workflows/ci.yml                       # CI/CD: tests, smoke test, Vercel demo deploy
-├── demo/                                          # Read-only Vercel demo (build_demo.py, vercel.json)
+├── demo/                                          # Read-only Vercel demo (build_demo.py, vercel.json, templates/)
+├── simulation/                                    # WTH-Raft simulation (wthraft/, run.py, results/, tests/)
 ├── docker-compose.yml                             # Full stack: db, ganache, contracts, app
 ├── .env.example                                   # Optional overrides for docker compose
 ├── docker/
@@ -142,7 +143,8 @@ AgroTrustChain/
 │       └── src/
 │           ├── AgricultureFoodSupplyChainV1Server.py  # Flask app — all routes, login, RBAC
 │           ├── HashChain.py                       # Seals, anchors and verifies the hash chain
-│           ├── Blockchain.py                      # Web3 calls to TransactionDetailsContract
+│           ├── Blockchain.py                      # Web3 calls to both contracts
+│           ├── BatchModel.py                      # DAO: Batch table (scores live on-chain)
 │           ├── Passwords.py                       # Salted password hashing
 │           ├── upgrade_passwords.py               # Hashes legacy plain-text passwords
 │           ├── Constants.py                       # Configuration (env vars, Windows defaults)
@@ -174,7 +176,8 @@ AgroTrustChain/
 │   │   ├── FarmerContract.sol
 │   │   ├── ProductContract.sol
 │   │   ├── RoleContract.sol
-│   │   ├── TransactionDetailsContract.sol         # ← the one the Flask app calls
+│   │   ├── TransactionDetailsContract.sol         # Transactions + hash-chain anchor (app calls it)
+│   │   ├── TraceabilityManagement.sol             # Batches, compliance, Q/R scores, penalties (app calls it)
 │   │   ├── UsersContract.sol
 │   │   ├── AgroCoin.sol                           # ERC20-style token (AGC, supply 1,000,000)
 │   │   ├── TrustCoin.sol                          # ERC20-style token (TRC, supply 500,000)
@@ -197,6 +200,8 @@ AgroTrustChain/
 - **Line endings.** Most existing source files use CRLF, because the project was written on
   Windows. Keep each file's existing line endings so diffs stay readable. Shell scripts must be LF:
   `.gitattributes` enforces this, because CRLF breaks them inside Linux containers.
+- **Reputation rules live in the contract** (`TraceabilityManagement.sol`). `simulation/wthraft/reputation.py`
+  mirrors them for the simulation and the demo; a test fails if the constants drift apart, so change both together.
 - **Database changes go in `migrate.sql`.** It runs on every Docker start and by hand after a
   manual restore, so every statement must be idempotent: guard with `IF NOT EXISTS` / `IF EXISTS`.
   Do not edit the `.bak`. It is the seed that everyone restores from.
@@ -225,7 +230,8 @@ AgroTrustChain/
 
 ```bash
 docker compose run --rm tests                      # Python: hash chain, passwords, login, CSRF, permissions
-docker compose run --rm contracts truffle test     # Solidity: TransactionDetailsContract, against Ganache
+docker compose run --rm contracts truffle test     # Solidity: both contracts, against Ganache
+python -m pytest simulation/tests                  # WTH-Raft simulation (pip install -r simulation/requirements.txt pytest)
 ```
 
 - **Python** (`AgricultureFoodSupplyChain/AgricultureFoodSupplyChain/tests/`, pytest). These need
@@ -251,6 +257,7 @@ Add a test with every change to `HashChain.py`, the login flow or the contract.
 | Python tests | `docker compose run --rm tests` |
 | Contract tests | `truffle test` against Ganache |
 | Full-stack smoke test | Starts the whole Docker stack and runs `docker/smoke-test.sh` |
+| WTH-Raft simulation | Simulation tests and a `--quick` run (results uploaded as an artifact) |
 | Build Vercel demo | `python demo/build_demo.py` |
 | Deploy preview | Pull requests only, after all of the above pass: an automatic Vercel **preview** |
 | Deploy production | `main` only, after all of the above pass: waits for **manual approval**, then deploys to <https://agrotrustchain.vercel.app> |
@@ -287,6 +294,12 @@ Contributions are welcome in these areas. For security-related gaps, see [SECURI
   hand today.
 - **Contract duplication.** The seven entity contracts are identical apart from their names; a
   single parameterised contract would serve.
+- **The reputation engine trusts its inspector.** Inspection results are entered by app users
+  with the `canFarmer` permission and sent from the app's account. The contract cannot tell a
+  wrong inspection from a dishonest farmer. The simulation's Byzantine results likewise assume
+  the inspection reveals the truth after every round.
+- **Scores are keyed by farmer ID strings.** Suppliers have no Ethereum accounts of their own; the
+  app acts for everyone. Giving each farmer a wallet would let them sign their own claims.
 - **Sealing holds table locks while anchoring.** *Generate Blocks* keeps the `TransactionDetails`
   locks until the Ethereum anchor is confirmed. That takes milliseconds on Ganache, but would block
   other users for the block time on a real network.

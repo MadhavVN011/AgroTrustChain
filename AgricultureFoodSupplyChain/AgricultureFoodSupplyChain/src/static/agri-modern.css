@@ -461,3 +461,12 @@ label {
         font-size: 30px;
     }
 }
+
+/* Small forms inside tables (e.g. Revoke, Reinstate): no card styling. */
+form.inline-action {
+    display: inline;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+}

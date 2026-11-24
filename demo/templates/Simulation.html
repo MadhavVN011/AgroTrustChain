@@ -1,0 +1,18 @@
+{% extends "Home.html" %}
+
+{% block content %}
+<h2 class="heading">WTH-Raft Simulation</h2>
+<p>A simulation of the paper's Weighted Two-Hop Raft consensus against standard Raft and PBFT. It uses a message-level
+model for latency and throughput, and a round-based model with malicious nodes that uses the same reputation rules as
+the TraceabilityManagement contract. The full tables, the check of each claim in the paper, and the model's assumptions
+are in <a href="{{ repo }}/blob/main/simulation/results/RESULTS.md">RESULTS.md</a>.</p>
+
+<div class="alert alert-info"><b>Key assumption:</b> after every round, an off-chain inspection reveals the truth, and every
+node's report is scored against it. With a weaker oracle, malicious nodes would keep their weight for longer.</div>
+
+{% for image, alt in charts %}
+<figure class="my-4">
+  <img src="/simulation/{{ image }}" alt="{{ alt }}" style="max-width:100%;height:auto;border:1px solid #e4e3df;border-radius:6px"/>
+</figure>
+{% endfor %}
+{% endblock %}

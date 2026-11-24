@@ -52,6 +52,25 @@ jobs:
         if: always()
         run: docker compose down -v
 
+  simulation:
+    name: WTH-Raft simulation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r simulation/requirements.txt pytest
+      - name: Simulation tests
+        run: python -m pytest -q -p no:cacheprovider simulation/tests
+      - name: Quick simulation run
+        run: python simulation/run.py --quick --out "$RUNNER_TEMP/simulation"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simulation-quick-results
+          path: ${{ runner.temp }}/simulation
+
   demo:
     name: Build Vercel demo
     runs-on: ubuntu-latest
@@ -73,7 +92,7 @@ jobs:
   deploy-preview:
     name: Deploy preview
     if: github.event_name == 'pull_request'
-    needs: [python-tests, contract-tests, integration, demo]
+    needs: [python-tests, contract-tests, integration, simulation, demo]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -94,7 +113,7 @@ jobs:
   deploy-production:
     name: Deploy production
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: [python-tests, contract-tests, integration, demo]
+    needs: [python-tests, contract-tests, integration, simulation, demo]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:

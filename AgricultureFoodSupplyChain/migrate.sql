@@ -55,3 +55,25 @@ BEGIN
     ALTER TABLE dbo.Users ALTER COLUMN password nvarchar(255) NULL;
     PRINT 'Widened Users.password to nvarchar(255).';
 END;
+
+-- 5. Product batches with their certificates and quality inspections. The
+--    scores and penalties live on-chain in TraceabilityManagement; this table
+--    keeps the batch details for listing.
+IF OBJECT_ID('dbo.Batch', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Batch (
+        batchID            nvarchar(100) NOT NULL CONSTRAINT PK_Batch PRIMARY KEY,
+        farmerID           nvarchar(100) NOT NULL,
+        productID          nvarchar(100) NULL,
+        certificateNumber  nvarchar(200) NOT NULL,
+        certificateHash    nvarchar(64)  NOT NULL,
+        certificateExpiry  date          NOT NULL,
+        claimedQuality     int           NOT NULL,
+        inspectedQuality   int           NULL,
+        status             nvarchar(30)  NOT NULL,
+        ethTxHash          nvarchar(66)  NULL,
+        inspectionTxHash   nvarchar(66)  NULL,
+        createdAt          datetime2     NOT NULL CONSTRAINT DF_Batch_createdAt DEFAULT SYSUTCDATETIME()
+    );
+    PRINT 'Created table Batch.';
+END;

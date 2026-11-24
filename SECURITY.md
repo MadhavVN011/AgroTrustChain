@@ -23,6 +23,7 @@ anywhere shared.
 | Ethereum account | Transactions and chain anchors are sent from Ganache's unlocked `accounts[0]`, which owns the contract. | Acceptable only on a private development chain. A real network needs proper key management. |
 | Hash chain | Someone who controls both the database *and* the contract owner's Ethereum account can rewrite the chain and re-anchor it. | Edits, deletions, re-ordering and full rewrites are all detected unless the owner account is also compromised. Every anchor emits a `ChainAnchored` event, but the app does not audit that history yet. |
 | Login hardening | No rate limiting or account lockout on failed logins, and HTTPS is not configured. | Passwords are salted hashes, and ports are bound to localhost. Put a TLS reverse proxy in front for anything shared. |
+| Reputation engine | Inspection results are entered by any user with the `canFarmer` permission, and the contract trusts them. A dishonest inspector can penalise or suspend a farmer. | Inspections are on-chain and emit events (`QualityValidated`, `PenaltyApplied`), so they can be audited. Restrict `canFarmer` to trusted inspectors. |
 | Personal data | Farmer and buyer records hold contact details and Aadhaar numbers in clear text. | Don't load real personal data into a demo deployment. |
 
 ## Resolved
